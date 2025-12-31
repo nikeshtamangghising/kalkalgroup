@@ -10,20 +10,6 @@
       "maxDuration": 30
     }
   },
-  "crons": [
-    {
-      "path": "/api/cron/daily-maintenance",
-      "schedule": "0 2 * * *"
-    },
-    {
-      "path": "/api/cron/update-scores",
-      "schedule": "0 */6 * * *"
-    },
-    {
-      "path": "/api/cron/cleanup-sessions",
-      "schedule": "0 1 * * *"
-    }
-  ],
   "env": {
     "NODE_ENV": "production"
   },
