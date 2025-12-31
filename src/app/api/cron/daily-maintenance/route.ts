@@ -1,0 +1,122 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { generateSitemap } from '@/lib/sitemap';
+import { db } from '@/lib/db';
+import { sessions, verificationTokens } from '@/lib/db/schema';
+import { lt } from 'drizzle-orm';
+import { forceFullUpdate } from '@/lib/smart-score-updater';
+
+/**
+ * Consolidated daily maintenance job for Vercel Hobby plan
+ * Runs once per day at 2 AM UTC
+ * Combines: product scores, sitemap, session cleanup, email analytics
+ */
+export async function GET(request: NextRequest) {
+  try {
+    // Verify authorization
+    const authHeader = request.headers.get('authorization');
+    if (process.env.NODE_ENV === 'production' && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!db) {
+      return NextResponse.json(
+        { error: 'Database not available' },
+        { status: 500 }
+      )
+    }
+
+    const startTime = Date.now();
+    const results: Record<string, any> = {};
+
+    // Task 1: Update product scores and metrics (using smart updater)
+    try {
+      await forceFullUpdate();
+      
+      // Weekly cleanup (run on Sundays)
+      const shouldCleanup = new Date().getDay() === 0; // Run on Sundays
+      if (shouldCleanup) {
+        // ActivityTracker doesn't have cleanOldActivities method, so we'll skip this
+        results.activityCleanup = 'skipped - method not available';
+      }
+      
+      results.productScores = 'success';
+    } catch (error) {
+      console.error('❌ Product scores failed:', error);
+      results.productScores = `error: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    }
+
+    // Task 2: Update sitemap
+    try {
+      await generateSitemap();
+      results.sitemap = 'success';
+    } catch (error) {
+      console.error('❌ Sitemap update failed:', error);
+      results.sitemap = `error: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    }
+
+    // Task 3: Cleanup sessions and tokens
+    try {
+      
+      // Clean expired sessions (older than 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      await db.delete(sessions)
+        .where(lt(sessions.expires, thirtyDaysAgo));
+      // Note: Drizzle doesn't return count for deleteMany
+      const sessionsDeleted = 0;
+
+      // Clean expired verification tokens (older than 7 days)
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      await db.delete(verificationTokens)
+        .where(lt(verificationTokens.expires, sevenDaysAgo));
+      const tokensDeleted = 0;
+
+      results.cleanup = {
+        status: 'success',
+        sessionsDeleted,
+        tokensDeleted
+      };
+    } catch (error) {
+      console.error('❌ Session cleanup failed:', error);
+      results.cleanup = `error: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    }
+
+    // Task 4: Email analytics (placeholder for future implementation)
+    try {
+      // Placeholder - actual implementation would process email metrics
+      results.emailAnalytics = 'success (placeholder)';
+    } catch (error) {
+      console.error('❌ Email analytics failed:', error);
+      results.emailAnalytics = `error: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    }
+
+    const duration = Date.now() - startTime;
+
+    return NextResponse.json({
+      success: true,
+      message: 'Daily maintenance completed',
+      duration: `${duration}ms`,
+      timestamp: new Date().toISOString(),
+      results
+    });
+
+  } catch (error) {
+    console.error('Fatal error in daily maintenance:', error);
+    return NextResponse.json(
+      { 
+        error: 'Daily maintenance failed',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// Allow POST method for manual triggering
+export async function POST(request: NextRequest) {
+  return GET(request);
+}

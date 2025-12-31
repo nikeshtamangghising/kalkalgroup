@@ -1,0 +1,73 @@
+export const runtime = 'nodejs'
+
+import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { createAuthHandler } from '@/lib/auth-middleware'
+import { getServerSession } from '@/lib/auth'
+import { OrderRepository } from '@/lib/order-repository'
+import { orderProcessingService } from '@/lib/order-processing-service'
+
+const createOrderRequestSchema = z.object({
+  items: z.array(z.object({
+    productId: z.string(),
+    quantity: z.number().int().positive(),
+    price: z.number().positive(),
+  })).min(1),
+  total: z.number().positive(),
+  shippingAddress: z.object({
+    fullName: z.string(),
+    email: z.string().email(),
+    phone: z.string().optional(),
+    address: z.string(),
+    city: z.string(),
+    postalCode: z.string(),
+  }).optional(),
+  paymentTransactionId: z.string().optional(), // Optional payment/transaction ID
+})
+
+export const POST = createAuthHandler(async (request: NextRequest) => {
+  try {
+    const session = await getServerSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const parse = createOrderRequestSchema.safeParse(body)
+    if (!parse.success) {
+      return NextResponse.json(
+        { error: 'Invalid request', details: parse.error.issues },
+        { status: 400 }
+      )
+    }
+
+    const { items, total, shippingAddress, paymentTransactionId } = parse.data
+
+    // Generate a payment transaction ID if not provided (for demo/test orders)
+    const finalPaymentTransactionId = paymentTransactionId || `direct-order-${session.user.id}-${Date.now()}`
+
+    const order = await OrderRepository.create({
+      userId: session.user.id,
+      items: items.map(i => ({ productId: i.productId, quantity: i.quantity, price: i.price })),
+      total,
+      shippingAddress: shippingAddress ? shippingAddress : undefined,
+      stripePaymentIntentId: finalPaymentTransactionId,
+    })
+
+    // Start order processing workflow
+    try {
+      await orderProcessingService.processOrderLifecycle(order.id)
+    } catch (processingError) {
+      console.error('Failed to start order processing:', processingError)
+      // Don't fail the order if processing fails
+    }
+
+    return NextResponse.json({ success: true, order })
+
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to create order' },
+      { status: 400 }
+    )
+  }
+})

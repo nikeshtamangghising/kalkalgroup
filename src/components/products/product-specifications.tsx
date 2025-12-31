@@ -1,0 +1,145 @@
+'use client'
+
+import { Product } from '@/types'
+import { getAttributeValue } from '@/lib/product-attributes'
+
+interface ProductSpecificationsProps {
+  // Product coming into this component may include additional fields
+  // such as weight, dimensions, attributes, etc.
+  product: Product & Record<string, any>
+  className?: string
+}
+
+export default function ProductSpecifications({ product, className = '' }: ProductSpecificationsProps) {
+  // Get product attributes for dynamic specifications
+  const attributes = (product as any).attributes || []
+  
+  // Extract specifications from product data
+  const specifications = [
+    {
+      label: 'SKU',
+      // products table does not have a top-level SKU; fall back to product id
+      value: product.id
+    },
+    {
+      label: 'Category',
+      value: typeof (product as any).category === 'object' ? (product as any).category?.name : 'Uncategorized'
+    },
+    {
+      label: 'Brand',
+      value: typeof (product as any).brand === 'object' ? (product as any).brand?.name : 'Not specified'
+    },
+    {
+      label: 'Weight',
+      value: product.weight ? `${product.weight} kg` : 'Not specified'
+    },
+    {
+      label: 'Dimensions',
+      value: product.dimensions 
+        ? `${(product.dimensions as any).length || 'N/A'} × ${(product.dimensions as any).width || 'N/A'} × ${(product.dimensions as any).height || 'N/A'} cm`
+        : 'Not specified'
+    },
+    {
+      label: 'Material',
+      value: getAttributeValue((product as any).attributes, 'material')
+    },
+    {
+      label: 'Color',
+      value: getAttributeValue((product as any).attributes, 'color')
+    }
+  ]
+  
+  // Add dynamic attributes from database
+  const additionalSpecs: { label: string; value: string | number | boolean }[] =
+    attributes.map((attr: any) => ({
+      label: String(attr.name),
+      value: attr.value as string | number | boolean
+    }))
+  
+  // Inventory specifications
+  const inventorySpecs = [
+    {
+      label: 'In Stock',
+      value: product.inventory > 0 ? 'Yes' : 'No'
+    },
+    {
+      label: 'Stock Quantity',
+      value: product.inventory.toString()
+    },
+    {
+      label: 'Low Stock Threshold',
+      value: `${product.lowStockThreshold || 5} units`
+    }
+  ]
+
+  return (
+    <div className={`${className}`}>
+      <div className="bg-white shadow-sm rounded-lg overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-medium text-gray-900">Product Specifications</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            Detailed information about this product
+          </p>
+        </div>
+        
+        <div className="px-6 py-4">
+          <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
+            {specifications.concat(inventorySpecs).map((spec, index) => (
+              <div key={index}>
+                <dt className="text-sm font-medium text-gray-500">
+                  {spec.label}
+                </dt>
+                <dd className="mt-1 text-sm text-gray-900">
+                  {spec.value}
+                </dd>
+              </div>
+            ))}
+            
+            {/* Display additional attributes not already shown */}
+            {additionalSpecs
+              .filter(spec => 
+                !specifications.some(basicSpec => 
+                  basicSpec.label.toLowerCase() === spec.label.toLowerCase()
+                ) && 
+                !inventorySpecs.some(invSpec => 
+                  invSpec.label.toLowerCase() === spec.label.toLowerCase()
+                )
+              )
+              .map((spec, index) => (
+                <div key={`additional-${index}`}>
+                  <dt className="text-sm font-medium text-gray-500 capitalize">
+                    {spec.label}
+                  </dt>
+                  <dd className="mt-1 text-sm text-gray-900">
+                    {spec.value}
+                  </dd>
+                </div>
+              ))
+            }
+          </dl>
+        </div>
+      </div>
+
+      {/* Additional Product Information */}
+      {product.tags && product.tags.length > 0 && (
+        <div className="mt-6 bg-white shadow-sm rounded-lg overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-medium text-gray-900">Tags</h3>
+          </div>
+          <div className="px-6 py-4">
+            <div className="flex flex-wrap gap-2">
+              {product.tags.map((tag, index) => (
+                <span
+                  key={index}
+                  className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

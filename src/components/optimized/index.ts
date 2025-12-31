@@ -1,0 +1,9 @@
+// Optimized components with lazy loading and memoization
+export { default as LazyProductCard } from './lazy-product-card'
+export { default as VirtualizedProductGrid } from './virtualized-product-grid'
+export { default as MemoizedCartItem } from './memoized-cart-item'
+export { default as OptimizedImage } from './optimized-image'
+export { default as LazyModal } from './lazy-modal'
+export { default as InfiniteScrollGrid } from './infinite-scroll-grid'
+export { default as PerformantTabs } from './performant-tabs'
+export { default as SmartProductGrid } from './smart-product-grid'
