@@ -1,93 +1,95 @@
-import { z } from 'zod'
-import { 
-  createPublicAPIRoute,
-  createAdminAPIRoute,
-  createSuccessResponse
-} from '@/lib/backend/middleware/api-wrapper'
+import { NextRequest, NextResponse } from 'next/server'
 import { categoryRepository } from '@/lib/category-repository'
+import { createAdminHandler } from '@/lib/auth-middleware'
 
-const getCategoriesSchema = z.object({
-  type: z.enum(['navigation', 'hierarchy', 'flat', 'search', 'all']).default('all'),
-  search: z.string().optional(),
-  includeInactive: z.boolean().default(false)
-})
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const includeInactive = searchParams.get('includeInactive') === 'true'
+    const search = searchParams.get('search') || undefined
 
-export const GET = createPublicAPIRoute(
-  async (_, { query }) => {
-    const { type, search, includeInactive } = query
+    // Use repository to get all categories (flat structure like brands)
+    const categories = await categoryRepository.getAllFlat(includeInactive)
 
-    let categories
-
-    switch (type) {
-      case 'navigation':
-        categories = await categoryRepository.getNavigationCategories()
-        break
-      case 'hierarchy':
-        categories = await categoryRepository.getRootCategoriesWithChildren()
-        break
-      case 'flat':
-        categories = await categoryRepository.getAllFlat(includeInactive)
-        break
-      case 'search':
-        if (!search) {
-          throw new Error('Search query is required for search type')
-        }
-        categories = await categoryRepository.search(search)
-        break
-      default:
-        categories = await categoryRepository.getAllFlat(includeInactive)
-    }
-
-    return createSuccessResponse(
-      {
-        categories,
-        count: categories.length
-      },
-      'Categories retrieved successfully'
-    )
-  },
-  {
-    rateLimit: 'api',
-    validation: {
-      query: getCategoriesSchema
-    },
-    cache: {
-      ttl: 600, // 10 minutes
-      tags: ['categories']
-    }
-  }
-)
-
-const createCategorySchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  description: z.string().optional(),
-  parent_id: z.string().optional(),
-  metaTitle: z.string().optional(),
-  metaDescription: z.string().optional(),
-  image: z.string().optional()
-})
-
-export const POST = createAdminAPIRoute(
-  async (_, { body }) => {
-    const category = await categoryRepository.create({
-      name: body.name,
-      description: body.description,
-      parent_id: body.parentId || undefined,
-      metaTitle: body.metaTitle,
-      metaDescription: body.metaDescription,
-      image: body.image
+    return NextResponse.json({
+      categories,
+      total: categories.length
     })
 
-    return createSuccessResponse(
-      category,
-      'Category created successfully',
-      201
+  } catch (error) {
+    console.error('Error fetching categories:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
     )
-  },
-  {
-    rateLimit: 'admin',
-    validation: {
-      body: createCategorySchema
-    }
   }
-)
+}
+
+const createCategorySchema = {
+  name: 'string',
+  description: 'string',
+  parent_id: 'string',
+  metaTitle: 'string',
+  metaDescription: 'string',
+  image: 'string'
+}
+
+export const POST = createAdminHandler(async (request: NextRequest) => {
+  try {
+    const body = await request.json()
+    const { name, description, parent_id, metaTitle, metaDescription, image } = body
+
+    // Basic validation
+    if (!name) {
+      return NextResponse.json(
+        { error: 'Name is required' },
+        { status: 400 }
+      )
+    }
+
+    // Auto-generate slug if not provided
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+
+    if (!slug) {
+      return NextResponse.json(
+        { error: 'Could not generate valid slug from name' },
+        { status: 400 }
+      )
+    }
+
+    try {
+      const category = await categoryRepository.create({
+        name,
+        description,
+        parent_id: parent_id || undefined,
+        metaTitle,
+        metaDescription,
+        image
+      })
+
+      return NextResponse.json(
+        {
+          message: 'Category created successfully',
+          category
+        },
+        { status: 201 }
+      )
+    } catch (e: any) {
+      // Catch unique violation if repository throws it clearly, or generic error
+      if (e.message && (e.message.includes('unique') || e.message.includes('duplicate'))) {
+        return NextResponse.json(
+          { error: 'A category with this name or slug already exists' },
+          { status: 400 }
+        )
+      }
+      throw e
+    }
+
+  } catch (error) {
+    console.error('Error creating category:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+})

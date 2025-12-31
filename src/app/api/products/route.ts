@@ -16,6 +16,28 @@ const filtersSchema = z.object({
   sort: z.enum(['price-asc', 'price-desc', 'name-asc', 'name-desc', 'newest']).default('newest')
 })
 
+const createProductSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  slug: z.string().optional(),
+  description: z.string().nullable().optional(),
+  sku: z.string().nullable().optional(),
+  barcode: z.string().nullable().optional(),
+  price: z.number().min(0, 'Price must be positive'),
+  purchasePrice: z.number().nullable().optional(),
+  discountPrice: z.number().nullable().optional(),
+  weight: z.number().nullable().optional(),
+  length: z.number().nullable().optional(),
+  width: z.number().nullable().optional(),
+  height: z.number().nullable().optional(),
+  category: z.string().min(1, 'Category is required'),
+  brand: z.string().nullable().optional(),
+  tags: z.array(z.string()).optional(),
+  isActive: z.boolean().default(true),
+  stockQuantity: z.number().default(0),
+  minStockLevel: z.number().default(5),
+  trackInventory: z.boolean().default(true)
+})
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -50,6 +72,54 @@ export async function GET(request: NextRequest) {
       { 
         success: false,
         error: 'Failed to fetch products',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      },
+      { status: 500 }
+    )
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    
+    // Validate the request body
+    const validatedData = createProductSchema.parse(body)
+    
+    // Generate slug if not provided
+    if (!validatedData.slug) {
+      validatedData.slug = validatedData.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '')
+    }
+    
+    const product = await productRepository.create(validatedData)
+    
+    return NextResponse.json({
+      success: true,
+      data: product,
+      message: 'Product created successfully'
+    }, { status: 201 })
+    
+  } catch (error) {
+    console.error('Create product error:', error)
+    
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Validation failed',
+          details: error.errors
+        },
+        { status: 400 }
+      )
+    }
+    
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Failed to create product',
         message: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }

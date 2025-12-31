@@ -40,12 +40,15 @@ const AdminProductsTabContent = memo(() => {
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch('/api/products/categories')
+      const response = await fetch('/api/categories')
       if (response.ok) {
         const data = await response.json()
-        setCategories(data.categories)
+        // Handle simplified response format: { categories: [...], total: N }
+        const categories = data.categories || data.data || data
+        setCategories(Array.isArray(categories) ? categories.map((cat: any) => cat.name) : [])
       }
     } catch (error) {
+      console.error('Failed to fetch categories:', error)
     }
   }
 
