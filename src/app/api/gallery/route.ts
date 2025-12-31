@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { GalleryRepository } from '@/lib/gallery-repository'
+import { GalleryRepository } from '@/lib/gallery-repository-simple'
 import { z } from 'zod'
 
 export const runtime = 'nodejs'

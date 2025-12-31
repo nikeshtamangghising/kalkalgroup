@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { GalleryRepository, type UpdateGalleryItem } from '@/lib/gallery-repository'
-import { log } from '@/lib/backend/monitoring/logger'
+import { GalleryRepository, type UpdateGalleryItem } from '@/lib/gallery-repository-simple'
 
 // Validation schema for gallery updates
 const updateGallerySchema = z.object({
@@ -39,7 +38,7 @@ export async function GET(
       source: 'database'
     })
   } catch (error) {
-    log.error(error as Error, { context: 'fetching gallery item' })
+    console.error('[Gallery API] Error fetching gallery item:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to fetch gallery item' },
       { status: 500 }
@@ -81,7 +80,7 @@ export async function PUT(
       source: 'database'
     })
   } catch (error) {
-    log.error(error as Error, { context: 'updating gallery item' })
+    console.error('[Gallery API] Error updating gallery item:', error)
     
     if (error instanceof z.ZodError) {
       return NextResponse.json(

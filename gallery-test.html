@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gallery Upload Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 600px; margin: 0 auto; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, textarea, select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        button { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .error { color: red; margin-top: 10px; }
+        .success { color: green; margin-top: 10px; }
+        .loading { margin-top: 10px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Gallery Upload Test</h1>
+        <p>This page tests the gallery upload API directly.</p>
+        
+        <form id="uploadForm">
+            <div class="form-group">
+                <label for="title">Title:</label>
+                <input type="text" id="title" name="title" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="description">Description:</label>
+                <textarea id="description" name="description" rows="3"></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="category">Category:</label>
+                <select id="category" name="category" required>
+                    <option value="FACTORY">Factory</option>
+                    <option value="PRODUCTION">Production</option>
+                    <option value="PRODUCTS">Products</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="altText">Alt Text:</label>
+                <input type="text" id="altText" name="altText">
+            </div>
+            
+            <div class="form-group">
+                <label for="image">Image:</label>
+                <input type="file" id="image" name="image" accept="image/*" required>
+            </div>
+            
+            <button type="submit">Upload Image</button>
+            
+            <div id="result"></div>
+        </form>
+        
+        <hr style="margin: 30px 0;">
+        
+        <h2>Current Gallery Items</h2>
+        <button id="loadGallery">Load Gallery</button>
+        <div id="gallery"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://kalkalgroup.vercel.app/api';
+        
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<div class="loading">Uploading...</div>';
+            
+            try {
+                const formData = new FormData();
+                formData.append('title', document.getElementById('title').value);
+                formData.append('description', document.getElementById('description').value);
+                formData.append('category', document.getElementById('category').value);
+                formData.append('altText', document.getElementById('altText').value);
+                formData.append('tags', JSON.stringify(['test-upload']));
+                formData.append('metadata', JSON.stringify({ source: 'test-page' }));
+                
+                const imageFile = document.getElementById('image').files[0];
+                if (imageFile) {
+                    formData.append('image', imageFile);
+                }
+                
+                const response = await fetch(`${API_BASE}/gallery`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                // Get response as text first to debug JSON parsing issues
+                const responseText = await response.text();
+                console.log('Raw response:', responseText);
+                
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch (parseError) {
+                    throw new Error(`Invalid JSON response: ${parseError.message}. Response: ${responseText.substring(0, 200)}`);
+                }
+                
+                if (response.ok && data.success) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h3>✅ Upload Successful!</h3>
+                            <p>Item ID: ${data.data.id}</p>
+                            <p>Title: ${data.data.title}</p>
+                            <p>Image URL: <a href="${data.data.imageUrl}" target="_blank">${data.data.imageUrl}</a></p>
+                        </div>
+                    `;
+                    document.getElementById('uploadForm').reset();
+                    loadGallery(); // Refresh gallery
+                } else {
+                    throw new Error(data.error || 'Upload failed');
+                }
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h3>❌ Upload Failed</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+                console.error('Upload error:', error);
+            }
+        });
+        
+        async function loadGallery() {
+            const galleryDiv = document.getElementById('gallery');
+            galleryDiv.innerHTML = '<div class="loading">Loading gallery...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/gallery`);
+                const responseText = await response.text();
+                
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch (parseError) {
+                    throw new Error(`Invalid JSON response: ${parseError.message}`);
+                }
+                
+                if (response.ok && data.success) {
+                    const items = data.data || [];
+                    if (items.length === 0) {
+                        galleryDiv.innerHTML = '<p>No gallery items found.</p>';
+                    } else {
+                        galleryDiv.innerHTML = items.map(item => `
+                            <div style="border: 1px solid #ddd; padding: 10px; margin: 10px 0; border-radius: 4px;">
+                                <h4>${item.title}</h4>
+                                <p><strong>Category:</strong> ${item.category}</p>
+                                <p><strong>Description:</strong> ${item.description || 'N/A'}</p>
+                                <img src="${item.imageUrl}" alt="${item.altText}" style="max-width: 200px; height: auto;">
+                                <p><small>ID: ${item.id}</small></p>
+                            </div>
+                        `).join('');
+                    }
+                } else {
+                    throw new Error(data.error || 'Failed to load gallery');
+                }
+                
+            } catch (error) {
+                galleryDiv.innerHTML = `
+                    <div class="error">
+                        <p>Failed to load gallery: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        document.getElementById('loadGallery').addEventListener('click', loadGallery);
+        
+        // Load gallery on page load
+        loadGallery();
+    </script>
+</body>
+</html>
