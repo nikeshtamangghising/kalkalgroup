@@ -383,15 +383,34 @@ export const shipments = pgTable('shipments', {
   carrier: text('carrier'),
   trackingNumber: text('tracking_number'),
   status: text('status').notNull().default(ShipmentStatus.PENDING),
-  shippedAt: timestamp('shipped_at'),
-  deliveredAt: timestamp('delivered_at'),
-  metadata: json('metadata'),
+  estimatedDelivery: timestamp('estimated_delivery'),
+  actualDelivery: timestamp('actual_delivery'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (table) => ({
-  orderIdx: index('shipments_order_idx').on(table.orderId),
-  statusIdx: index('shipments_status_idx').on(table.status),
-  trackingNumberIdx: index('shipments_tracking_number_idx').on(table.trackingNumber),
+  orderIdIdx: index('shipments_order_id_idx').on(table.orderId),
+}))
+
+/**
+ * REVIEWS
+ */
+export const reviews = pgTable('reviews', {
+  id: text('id').primaryKey().default(sql`gen_random_uuid()`),
+  productId: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => users.id),
+  guestName: text('guest_name'),
+  guestEmail: text('guest_email'),
+  rating: integer('rating').notNull(),
+  title: text('title'),
+  content: text('content'),
+  isVerified: boolean('is_verified').notNull().default(false),
+  isApproved: boolean('is_approved').notNull().default(false),
+  helpfulVotes: integer('helpful_votes').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (table) => ({
+  productIdIdx: index('reviews_product_id_idx').on(table.productId),
+  userIdIdx: index('reviews_user_id_idx').on(table.userId),
 }))
 
 /**
@@ -588,6 +607,17 @@ export const shipmentRelations = relations(shipments, ({ one }) => ({
   order: one(orders, {
     fields: [shipments.orderId],
     references: [orders.id],
+  }),
+}))
+
+export const reviewRelations = relations(reviews, ({ one }) => ({
+  product: one(products, {
+    fields: [reviews.productId],
+    references: [products.id],
+  }),
+  user: one(users, {
+    fields: [reviews.userId],
+    references: [users.id],
   }),
 }))
 

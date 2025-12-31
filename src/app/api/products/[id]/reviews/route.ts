@@ -1,24 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { createClient } from '@supabase/supabase-js'
+import { db } from '@/lib/db'
+import { reviews, products, users } from '@/lib/db/schema'
+import { eq, desc, sql, and } from 'drizzle-orm'
 
 interface RouteParams {
   params: Promise<{
     id: string
   }>
-}
-
-// Create a new Supabase client instance for this route
-const getSupabaseClient = () => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error('Supabase credentials not configured')
-  }
-  
-  return createClient(supabaseUrl, supabaseKey)
 }
 
 const createReviewSchema = {
@@ -69,18 +59,16 @@ export async function GET(
     }
 
     console.log('Fetching reviews for product ID:', id)
-    
-    const supabase = getSupabaseClient()
 
-    // Check if product exists using Supabase
-    const { data: product, error: productError } = await supabase
-      .from('products')
-      .select('id, name')
-      .eq('id', id)
-      .single()
+    // Check if product exists using Drizzle
+    const product = await db.select({ id: products.id, name: products.name })
+      .from(products)
+      .where(eq(products.id, id))
+      .limit(1)
+      .then(r => r[0] || null)
 
-    if (productError || !product) {
-      console.log('Product not found for ID:', id, productError)
+    if (!product) {
+      console.log('Product not found for ID:', id)
       return NextResponse.json(
         { error: 'Product not found' },
         { status: 404 }
@@ -91,40 +79,38 @@ export async function GET(
 
     // Get approved reviews with user information
     console.log('Fetching reviews...')
-    const { data: reviewsResult, error: reviewsError } = await supabase
-      .from('reviews')
-      .select(`
-        id,
-        rating,
-        title,
-        content,
-        created_at,
-        helpful_votes,
-        is_verified,
-        user:users(id, name, image)
-      `)
-      .eq('product_id', id)
-      .eq('is_approved', true)
-      .order('created_at', { ascending: false })
-
-    if (reviewsError) {
-      console.error('Error fetching reviews:', reviewsError)
-      throw new Error(reviewsError.message)
-    }
+    const reviewsResult = await db.select({
+      id: reviews.id,
+      rating: reviews.rating,
+      title: reviews.title,
+      content: reviews.content,
+      createdAt: reviews.createdAt,
+      helpfulVotes: reviews.helpfulVotes,
+      isVerified: reviews.isVerified,
+      user: {
+        id: users.id,
+        name: users.name,
+        avatarUrl: users.avatarUrl
+      }
+    })
+      .from(reviews)
+      .leftJoin(users, eq(reviews.userId, users.id))
+      .where(and(
+        eq(reviews.productId, id),
+        eq(reviews.isApproved, true)
+      ))
+      .orderBy(desc(reviews.createdAt))
 
     console.log('Reviews fetched:', reviewsResult?.length)
 
     // Calculate average rating and total count
     console.log('Calculating rating stats...')
-    const { data: avgData, error: avgError } = await supabase
-      .from('reviews')
-      .select('rating')
-      .eq('product_id', id)
-      .eq('is_approved', true)
-
-    if (avgError) {
-      console.error('Error calculating average:', avgError)
-    }
+    const avgData = await db.select({ rating: reviews.rating })
+      .from(reviews)
+      .where(and(
+        eq(reviews.productId, id),
+        eq(reviews.isApproved, true)
+      ))
 
     // Calculate average manually
     let avgRating = 0
@@ -133,39 +119,37 @@ export async function GET(
       avgRating = sum / avgData.length
     }
 
-    const { count: reviewCount, error: countError } = await supabase
-      .from('reviews')
-      .select('*', { count: 'exact', head: true })
-      .eq('product_id', id)
-      .eq('is_approved', true)
-
-    if (countError) {
-      console.error('Error counting reviews:', countError)
-    }
+    const countResult = await db.select({ count: sql<number>`count(*)::int` })
+      .from(reviews)
+      .where(and(
+        eq(reviews.productId, id),
+        eq(reviews.isApproved, true)
+      ))
+      .then(r => r[0]?.count || 0)
 
     console.log('Avg rating:', avgRating)
-    console.log('Review count:', reviewCount)
+    console.log('Review count:', countResult)
 
     const ratingStats = {
       average: Number(avgRating),
-      count: Number(reviewCount) || 0
+      count: Number(countResult) || 0
     }
 
     console.log('Rating stats:', ratingStats)
 
-    // Transform the reviews data to match the expected format
+    // Transform reviews data to match expected format
     const transformedReviews = reviewsResult?.map((review: any) => ({
       id: review.id,
       rating: review.rating,
       title: review.title,
       content: review.content,
-      createdAt: review.created_at,
-      helpfulVotes: review.helpful_votes || 0,
-      isVerified: review.is_verified || false,
+      createdAt: review.createdAt,
+      helpfulVotes: review.helpfulVotes || 0,
+      isVerified: review.isVerified || false,
       user: review.user ? {
         id: review.user.id,
         name: review.user.name,
-        image: review.user.image
+        image: review.user.avatarUrl
       } : undefined
     })) || []
 
@@ -202,16 +186,14 @@ export async function POST(
       )
     }
     
-    const supabase = getSupabaseClient()
-
     // Check if product exists
-    const { data: product, error: productError } = await supabase
-      .from('products')
-      .select('id, name')
-      .eq('id', id)
-      .single()
+    const product = await db.select({ id: products.id, name: products.name })
+      .from(products)
+      .where(eq(products.id, id))
+      .limit(1)
+      .then(r => r[0] || null)
 
-    if (productError || !product) {
+    if (!product) {
       return NextResponse.json(
         { error: 'Product not found' },
         { status: 404 }
@@ -243,14 +225,16 @@ export async function POST(
 
     // Check if user has already reviewed this product
     if (session?.user?.id) {
-      const { data: existingReview, error: existingReviewError } = await supabase
-        .from('reviews')
-        .select('id')
-        .eq('product_id', id)
-        .eq('user_id', session.user.id)
-        .single()
+      const existingReview = await db.select({ id: reviews.id })
+        .from(reviews)
+        .where(and(
+          eq(reviews.productId, id),
+          eq(reviews.userId, session.user.id)
+        ))
+        .limit(1)
+        .then(r => r[0] || null)
 
-      if (existingReview && !existingReviewError) {
+      if (existingReview) {
         return NextResponse.json(
           { error: 'You have already reviewed this product' },
           { status: 400 }
@@ -258,49 +242,54 @@ export async function POST(
       }
     }
 
-    // Create the review
-    const { data: review, error: insertError }: any = await supabase
-      .from('reviews')
-      .insert({
-        product_id: id,
-        user_id: session?.user?.id || null,
+    // Create review
+    const [review] = await db.insert(reviews)
+      .values({
+        productId: id,
+        userId: session?.user?.id || null,
         rating: rating,
         title: title || null,
         content: content,
-        is_verified: false,
-        is_approved: session?.user?.role === 'ADMIN',
-        helpful_votes: 0
+        isVerified: false,
+        isApproved: session?.user?.role === 'ADMIN',
+        helpfulVotes: 0
       })
-      .select(`
-        id,
-        rating,
-        title,
-        content,
-        created_at,
-        helpful_votes,
-        is_verified,
-        user:users(id, name, image)
-      `)
-      .single()
+      .returning()
 
-    if (insertError) {
-      console.error('Error creating review:', insertError)
-      throw new Error(insertError.message)
-    }
+    // Get the review with user information
+    const reviewWithUser = await db.select({
+      id: reviews.id,
+      rating: reviews.rating,
+      title: reviews.title,
+      content: reviews.content,
+      createdAt: reviews.createdAt,
+      helpfulVotes: reviews.helpfulVotes,
+      isVerified: reviews.isVerified,
+      user: {
+        id: users.id,
+        name: users.name,
+        avatarUrl: users.avatarUrl
+      }
+    })
+      .from(reviews)
+      .leftJoin(users, eq(reviews.userId, users.id))
+      .where(eq(reviews.id, review.id))
+      .limit(1)
+      .then(r => r[0])
 
-    // Transform the review data to match the expected format
+    // Transform review data to match expected format
     const transformedReview: any = {
-      id: review.id,
-      rating: review.rating,
-      title: review.title,
-      content: review.content,
-      createdAt: review.created_at,
-      helpfulVotes: review.helpful_votes || 0,
-      isVerified: review.is_verified || false,
-      user: review.user ? {
-        id: review.user.id,
-        name: review.user.name,
-        image: review.user.image
+      id: reviewWithUser.id,
+      rating: reviewWithUser.rating,
+      title: reviewWithUser.title,
+      content: reviewWithUser.content,
+      createdAt: reviewWithUser.createdAt,
+      helpfulVotes: reviewWithUser.helpfulVotes || 0,
+      isVerified: reviewWithUser.isVerified || false,
+      user: reviewWithUser.user ? {
+        id: reviewWithUser.user.id,
+        name: reviewWithUser.user.name,
+        image: reviewWithUser.user.avatarUrl
       } : undefined
     }
 
