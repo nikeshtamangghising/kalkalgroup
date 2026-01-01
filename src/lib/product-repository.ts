@@ -109,22 +109,24 @@ export class ProductRepository {
       isNewArrival: data.isNewArrival || false,
       inventory: data.stockQuantity || 0,
       lowStockThreshold: data.minStockLevel || 5,
+      orderCount: 0,
+      purchaseCount: 0,
+      viewCount: 0,
+      popularityScore: '0',
+      ratingAvg: '0',
+      ratingCount: 0,
       seoTitle: data.name,
       seoDescription: data.shortDescription || data.description?.substring(0, 160) || null,
-      // Handle dimensions
-      weight: data.weight ? data.weight.toString() : null,
-      // Store dimensions as JSON in attributes or separate fields if they exist
-      attributes: data.weight || data.length || data.width || data.height ? {
-        weight: data.weight,
+      metaTitle: data.metaTitle || null,
+      metaDescription: data.metaDescription || null,
+      // Handle dimensions and weight
+      weight: data.weight || null,
+      dimensions: (data.length || data.width || data.height) ? {
         length: data.length,
         width: data.width,
-        height: data.height,
-        dimensions: {
-          length: data.length,
-          width: data.width,
-          height: data.height
-        }
+        height: data.height
       } : null,
+      attributes: null
     };
 
     const [inserted] = await db

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Product Creation Test</title>
+</head>
+<body>
+    <h1>Product Creation Test</h1>
+    <button onclick="testProductCreation()">Test Product Creation</button>
+    <div id="results"></div>
+
+    <script>
+        async function testProductCreation() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<p>Testing product creation...</p>';
+            
+            try {
+                // Simulate the exact form data structure
+                const formData = {
+                    name: 'Browser Test Product ' + Date.now(),
+                    slug: '',
+                    description: 'This is a test product from browser',
+                    sku: '',
+                    barcode: '',
+                    price: '299.99',
+                    purchasePrice: '',
+                    discountPrice: '',
+                    weight: '',
+                    dimensions: {
+                        length: '',
+                        width: '',
+                        height: ''
+                    },
+                    category: 'Edible Oils',
+                    brand: '',
+                    tags: '',
+                    isActive: true,
+                    stockQuantity: '25',
+                    minStockLevel: '5',
+                    trackInventory: true,
+                    images: []
+                };
+                
+                // Apply the same conversions as the frontend
+                const productData = {
+                    name: formData.name,
+                    slug: formData.slug || formData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+                    description: formData.description || null,
+                    sku: formData.sku || null,
+                    barcode: formData.barcode || null,
+                    price: parseFloat(formData.price) || 0,
+                    purchasePrice: formData.purchasePrice ? parseFloat(formData.purchasePrice) : null,
+                    discountPrice: formData.discountPrice ? parseFloat(formData.discountPrice) : null,
+                    weight: formData.weight ? parseFloat(formData.weight) : null,
+                    length: formData.dimensions.length ? parseFloat(formData.dimensions.length) : null,
+                    width: formData.dimensions.width ? parseFloat(formData.dimensions.width) : null,
+                    height: formData.dimensions.height ? parseFloat(formData.dimensions.height) : null,
+                    category: formData.category,
+                    brand: formData.brand || null,
+                    tags: formData.tags ? formData.tags.split(',').map(tag => tag.trim()).filter(Boolean) : [],
+                    isActive: formData.isActive,
+                    stockQuantity: parseInt(formData.stockQuantity) || 0,
+                    minStockLevel: parseInt(formData.minStockLevel) || 5,
+                    trackInventory: formData.trackInventory,
+                    images: []
+                };
+                
+                console.log('Sending product data:', productData);
+                
+                const response = await fetch('/api/products', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(productData)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    resultsDiv.innerHTML = `
+                        <h3>✅ Success!</h3>
+                        <p>Product ID: ${result.data?.id}</p>
+                        <p>Product Name: ${result.data?.name}</p>
+                        <p>Price: ${result.data?.basePrice}</p>
+                        <p>Category: ${result.data?.category?.name}</p>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `
+                        <h3>❌ Failed!</h3>
+                        <p>Status: ${response.status}</p>
+                        <p>Error: ${result.error}</p>
+                        <p>Details: ${JSON.stringify(result.details, null, 2)}</p>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <h3>❌ Error!</h3>
+                    <p>${error.message}</p>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -26,12 +26,57 @@ function NewProductPageContent() {
     setImageFiles(newImageFiles)
     setImagePreviews(newImagePreviews)
   }
+
+  const handleImageUpload = (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    
+    const newFiles = Array.from(files)
+    
+    // Check if adding these files would exceed the limit of 5
+    if (imageFiles.length + newFiles.length > 5) {
+      setError(`Maximum 5 images allowed. You already have ${imageFiles.length} image(s).`)
+      return
+    }
+    
+    // Validate file types and sizes
+    const validFiles = newFiles.filter(file => {
+      if (!file.type.startsWith('image/')) {
+        setError(`${file.name} is not a valid image file`)
+        return false
+      }
+      
+      if (file.size > 10 * 1024 * 1024) { // 10MB
+        setError(`${file.name} is too large (max 10MB)`)
+        return false
+      }
+      
+      return true
+    })
+    
+    if (validFiles.length === 0) return
+    
+    setImageFiles(prev => [...prev, ...validFiles])
+    
+    // Create previews for valid files
+    validFiles.forEach(file => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setImagePreviews(prev => [...prev, e.target?.result as string])
+      }
+      reader.readAsDataURL(file)
+    })
+    
+    // Clear any previous error
+    if (error && error.includes('image')) {
+      setError('')
+    }
+  }
   
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string>('')
   const [success, setSuccess] = useState<string>('')
-  const [categories, setCategories] = useState<string[]>([])
-  const [brands, setBrands] = useState<string[]>([])
+  const [categories, setCategories] = useState<{id: string, name: string}[]>([])
+  const [brands, setBrands] = useState<{id: string, name: string}[]>([])
 
   // Form state
   const [formData, setFormData] = useState({
@@ -71,7 +116,7 @@ function NewProductPageContent() {
         const data = await response.json()
         // Handle simplified response format: { categories: [...], total: N }
         const categories = data.categories || data.data || data
-        setCategories(Array.isArray(categories) ? categories.map((cat: any) => cat.name) : [])
+        setCategories(Array.isArray(categories) ? categories.map((cat: any) => ({ id: cat.id, name: cat.name })) : [])
       }
     } catch (error) {
       console.error('Failed to fetch categories:', error)
@@ -85,7 +130,7 @@ function NewProductPageContent() {
         const data = await response.json()
         // Handle wrapped response format: { brands: [...], total: N }
         const brands = data.brands || data.data || data
-        setBrands(Array.isArray(brands) ? brands.map((brand: any) => brand.name) : [])
+        setBrands(Array.isArray(brands) ? brands.map((brand: any) => ({ id: brand.id, name: brand.name })) : [])
       }
     } catch (error) {
       console.error('Failed to fetch brands:', error)
@@ -134,33 +179,49 @@ function NewProductPageContent() {
       }
 
       // Upload images if provided
-      const images: string[] = []
+      let images: string[] = []
       
       if (imageFiles.length > 0) {
         try {
+          console.log(`[Product Creation] Uploading ${imageFiles.length} images to Cloudinary`)
+          
           // Upload images to Cloudinary
-          const formData = new FormData()
+          const uploadFormData = new FormData()
           imageFiles.forEach((file) => {
-            formData.append('files', file)
+            uploadFormData.append('files', file)
           })
           
           const uploadResponse = await fetch('/api/upload', {
             method: 'POST',
-            body: formData,
+            body: uploadFormData,
           })
           
           if (uploadResponse.ok) {
             const uploadResult = await uploadResponse.json()
-            if (uploadResult.success && uploadResult.data) {
-              images.push(...uploadResult.data)
-            } else if (uploadResult.urls) {
-              images.push(...uploadResult.urls)
+            console.log('[Product Creation] Upload response:', uploadResult)
+            
+            if (uploadResult.success && uploadResult.urls) {
+              images = uploadResult.urls
+              console.log(`[Product Creation] Successfully uploaded ${images.length} images`)
+              
+              if (uploadResult.partialSuccess && uploadResult.warnings) {
+                console.warn('[Product Creation] Some uploads failed:', uploadResult.warnings)
+                setError(`Some images failed to upload: ${uploadResult.warnings.join(', ')}. Product will be created with ${images.length} image(s).`)
+              }
+            } else {
+              throw new Error('Invalid upload response format')
             }
+          } else {
+            const uploadError = await uploadResponse.json()
+            throw new Error(uploadError.error || 'Image upload failed')
           }
         } catch (uploadError) {
-          console.error('Image upload failed:', uploadError)
-          setError('Failed to upload images. Product will be created without images.')
+          console.error('[Product Creation] Image upload failed:', uploadError)
+          setError(`Failed to upload images: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}. Product will be created without images.`)
+          // Continue without images - don't throw the error
         }
+      } else {
+        console.log('[Product Creation] No images to upload')
       }
 
       // Prepare product data
@@ -168,24 +229,40 @@ function NewProductPageContent() {
         name: formData.name,
         slug: formData.slug || generateSlug(formData.name),
         description: formData.description || null,
+        shortDescription: formData.description?.substring(0, 160) || null,
         sku: formData.sku || null,
         barcode: formData.barcode || null,
-        price: parseFloat(formData.price),
+        price: parseFloat(formData.price) || 0,
+        basePrice: parseFloat(formData.price) || 0,
         purchasePrice: formData.purchasePrice ? parseFloat(formData.purchasePrice) : null,
         discountPrice: formData.discountPrice ? parseFloat(formData.discountPrice) : null,
         weight: formData.weight ? parseFloat(formData.weight) : null,
-        length: formData.dimensions.length ? parseFloat(formData.dimensions.length) : null,
-        width: formData.dimensions.width ? parseFloat(formData.dimensions.width) : null,
-        height: formData.dimensions.height ? parseFloat(formData.dimensions.height) : null,
-        category: formData.category,
-        brand: formData.brand || null,
+        dimensions: {
+          length: formData.dimensions.length ? parseFloat(formData.dimensions.length) : null,
+          width: formData.dimensions.width ? parseFloat(formData.dimensions.width) : null,
+          height: formData.dimensions.height ? parseFloat(formData.dimensions.height) : null,
+        },
+        categoryId: formData.category,
+        brandId: formData.brand || null,
         tags: formData.tags ? formData.tags.split(',').map(tag => tag.trim()).filter(Boolean) : [],
         isActive: formData.isActive,
-        stockQuantity: parseInt(formData.stockQuantity) || 0,
-        minStockLevel: parseInt(formData.minStockLevel) || 5,
-        trackInventory: formData.trackInventory,
-        images: images
+        isFeatured: false,
+        isNewArrival: false,
+        inventory: parseInt(formData.stockQuantity) || 0,
+        lowStockThreshold: parseInt(formData.minStockLevel) || 5,
+        thumbnailUrl: images[0] || null,
+        images: images,
+        currency: 'NPR',
+        status: 'PUBLISHED'
       }
+
+      // Debug logging
+      console.log('🔍 Product Creation Debug:');
+      console.log('Raw formData:', formData);
+      console.log('Converted productData:', productData);
+      console.log('Price type:', typeof productData.price, 'value:', productData.price);
+      console.log('Inventory type:', typeof productData.inventory, 'value:', productData.inventory);
+      console.log('Tags type:', typeof productData.tags, 'value:', productData.tags);
 
       const response = await fetch('/api/products', {
         method: 'POST',
@@ -395,8 +472,8 @@ function NewProductPageContent() {
                   >
                     <option value="">Select a category</option>
                     {categories.map(category => (
-                      <option key={category} value={category}>
-                        {category}
+                      <option key={category.id} value={category.id}>
+                        {category.name}
                       </option>
                     ))}
                   </select>
@@ -414,8 +491,8 @@ function NewProductPageContent() {
                   >
                     <option value="">Select a brand</option>
                     {brands.map(brand => (
-                      <option key={brand} value={brand}>
-                        {brand}
+                      <option key={brand.id} value={brand.id}>
+                        {brand.name}
                       </option>
                     ))}
                   </select>
@@ -485,32 +562,48 @@ function NewProductPageContent() {
                 </div>
               </div>
 
-              {/* Product Image */}
+              {/* Product Images */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Product Image
+                  Product Images
                 </label>
                 <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md hover:border-gray-400">
                   <div className="space-y-1 text-center">
                     <div className="flex justify-center">
-                                            {imagePreviews.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
+                      {imagePreviews.length > 0 ? (
+                        <div className="flex flex-wrap gap-2 max-w-md">
                           {imagePreviews.map((preview, index) => (
-                            <div key={index} className="relative">
+                            <div key={index} className="relative group">
                               <img
                                 src={preview}
                                 alt={`Product preview ${index + 1}`}
-                                className="h-32 w-32 object-cover rounded"
+                                className="h-24 w-24 object-cover rounded-lg border-2 border-gray-200"
                               />
                               <button
                                 type="button"
                                 onClick={() => removeImage(index)}
-                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
+                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Remove image"
                               >
-                                ×
+                                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
                               </button>
+                              <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 rounded-b-lg">
+                                {imageFiles[index]?.name || `Image ${index + 1}`}
+                              </div>
                             </div>
                           ))}
+                          {imagePreviews.length < 5 && (
+                            <div className="h-24 w-24 flex items-center justify-center bg-gray-100 rounded-lg border-2 border-dashed border-gray-300">
+                              <div className="text-center">
+                                <svg className="h-8 w-8 text-gray-400 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                                <p className="text-xs text-gray-500 mt-1">Add more</p>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div className="h-32 w-32 flex items-center justify-center bg-gray-100 rounded">
@@ -535,34 +628,27 @@ function NewProductPageContent() {
                         htmlFor="image-upload"
                         className="relative cursor-pointer rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500"
                       >
-                        <span>Upload a file</span>
+                        <span>{imagePreviews.length > 0 ? 'Add more images' : 'Upload images'}</span>
                         <input
                           id="image-upload"
                           name="image-upload"
                           type="file"
                           className="sr-only"
                           accept="image/*"
-                          onChange={(e) => {
-                            const files = e.target.files
-                            if (files && files.length > 0) {
-                              const newFiles = Array.from(files)
-                              setImageFiles(prev => [...prev, ...newFiles])
-                              
-                              // Create previews for the new files
-                              newFiles.forEach(file => {
-                                const reader = new FileReader()
-                                reader.onload = (e) => {
-                                  setImagePreviews(prev => [...prev, e.target?.result as string])
-                                }
-                                reader.readAsDataURL(file)
-                              })
-                            }
-                          }}
+                          multiple
+                          onChange={(e) => handleImageUpload(e.target.files)}
                         />
                       </label>
                       <p className="pl-1">or drag and drop</p>
                     </div>
-                    <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</p>
+                    <p className="text-xs text-gray-500">
+                      PNG, JPG, GIF up to 10MB each. Max 5 images.
+                    </p>
+                    {imagePreviews.length > 0 && (
+                      <p className="text-xs text-green-600 font-medium">
+                        {imagePreviews.length} image(s) selected
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Image Upload Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        button { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0056b3; }
+        #results { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Image Upload Functionality Test</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: Check if Upload Button Exists</h2>
+        <p>Click the button below to navigate to the product creation page and check if the upload button is visible.</p>
+        <button onclick="window.open('/admin/products/new', '_blank')">Open Product Creation Page</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 2: Manual Image Upload Test</h2>
+        <p>Select an image to test the upload functionality:</p>
+        <input type="file" id="testImage" accept="image/*" multiple>
+        <button onclick="testImageUpload()">Test Upload</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 3: Check Authentication</h2>
+        <p>Check if you're logged in as admin (required for image upload):</p>
+        <button onclick="checkAuth()">Check Authentication</button>
+    </div>
+    
+    <div id="results"></div>
+
+    <script>
+        async function testImageUpload() {
+            const resultsDiv = document.getElementById('results');
+            const fileInput = document.getElementById('testImage');
+            
+            if (!fileInput.files || fileInput.files.length === 0) {
+                resultsDiv.innerHTML = '<div class="error">Please select an image first</div>';
+                return;
+            }
+            
+            resultsDiv.innerHTML = '<p>Testing image upload...</p>';
+            
+            try {
+                const formData = new FormData();
+                for (let file of fileInput.files) {
+                    formData.append('files', file);
+                }
+                
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    resultsDiv.innerHTML = `
+                        <div class="success">
+                            <h3>✅ Image Upload Successful!</h3>
+                            <p><strong>Uploaded URLs:</strong></p>
+                            <ul>${result.urls.map(url => `<li><a href="${url}" target="_blank">${url}</a></li>`).join('')}</ul>
+                            <p><strong>Count:</strong> ${result.count}</p>
+                            <p><strong>Message:</strong> ${result.message}</p>
+                            ${result.warnings ? `<p><strong>Warnings:</strong> ${result.warnings.join(', ')}</p>` : ''}
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="error">
+                            <h3>❌ Image Upload Failed</h3>
+                            <p><strong>Status:</strong> ${response.status}</p>
+                            <p><strong>Error:</strong> ${result.error}</p>
+                            ${result.details ? `<p><strong>Details:</strong> <pre>${JSON.stringify(result.details, null, 2)}</pre></p>` : ''}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="error">
+                        <h3>❌ Upload Error</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        async function checkAuth() {
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                // Try to access a protected endpoint
+                const response = await fetch('/api/products');
+                
+                if (response.ok) {
+                    resultsDiv.innerHTML = `
+                        <div class="success">
+                            <h3>✅ Authentication Working</h3>
+                            <p>You can access protected endpoints. Image upload should work if you're admin.</p>
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="error">
+                            <h3>❌ Authentication Issue</h3>
+                            <p>Status: ${response.status}</p>
+                            <p>You may need to log in as admin to upload images.</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="error">
+                        <h3>❌ Authentication Check Failed</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // Check if we can access the product creation page
+        fetch('/admin/products/new')
+            .then(response => {
+                if (response.ok) {
+                    console.log('✅ Product creation page is accessible');
+                } else {
+                    console.log('❌ Product creation page returned:', response.status);
+                }
+            })
+            .catch(error => {
+                console.log('❌ Error accessing product creation page:', error);
+            });
+    </script>
+</body>
+</html>

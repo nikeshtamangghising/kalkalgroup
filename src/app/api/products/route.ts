@@ -20,22 +20,38 @@ const createProductSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   slug: z.string().optional(),
   description: z.string().nullable().optional(),
+  shortDescription: z.string().nullable().optional(),
   sku: z.string().nullable().optional(),
   barcode: z.string().nullable().optional(),
   price: z.number().min(0, 'Price must be positive'),
+  basePrice: z.number().min(0, 'Base price must be positive'),
   purchasePrice: z.number().nullable().optional(),
   discountPrice: z.number().nullable().optional(),
   weight: z.number().nullable().optional(),
   length: z.number().nullable().optional(),
   width: z.number().nullable().optional(),
   height: z.number().nullable().optional(),
-  category: z.string().min(1, 'Category is required'),
-  brand: z.string().nullable().optional(),
+  dimensions: z.object({
+    length: z.number().nullable().optional(),
+    width: z.number().nullable().optional(),
+    height: z.number().nullable().optional(),
+  }).optional(),
+  categoryId: z.string().min(1, 'Category is required'),
+  category: z.string().min(1, 'Category is required').optional(), // Keep for backward compatibility
+  brandId: z.string().nullable().optional(),
+  brand: z.string().nullable().optional(), // Keep for backward compatibility
   tags: z.array(z.string()).optional(),
   isActive: z.boolean().default(true),
-  stockQuantity: z.number().default(0),
-  minStockLevel: z.number().default(5),
-  trackInventory: z.boolean().default(true)
+  isFeatured: z.boolean().default(false),
+  isNewArrival: z.boolean().default(false),
+  inventory: z.number().default(0),
+  stockQuantity: z.number().default(0).optional(), // Keep for backward compatibility
+  lowStockThreshold: z.number().default(5),
+  minStockLevel: z.number().default(5).optional(), // Keep for backward compatibility
+  thumbnailUrl: z.string().nullable().optional(),
+  images: z.array(z.string()).default([]),
+  currency: z.string().default('NPR'),
+  status: z.string().default('PUBLISHED'),
 })
 
 export async function GET(request: NextRequest) {
@@ -86,15 +102,24 @@ export async function POST(request: NextRequest) {
     // Validate the request body
     const validatedData = createProductSchema.parse(body)
     
-    // Generate slug if not provided
-    if (!validatedData.slug) {
-      validatedData.slug = validatedData.name
+    // Prepare data for product repository with proper field mapping
+    const productData = {
+      ...validatedData,
+      // Map legacy fields to actual database fields
+      categoryId: validatedData.categoryId || validatedData.category,
+      brandId: validatedData.brandId || validatedData.brand,
+      inventory: validatedData.inventory || validatedData.stockQuantity,
+      lowStockThreshold: validatedData.lowStockThreshold || validatedData.minStockLevel,
+      // Use basePrice as the main price if price is not provided
+      basePrice: validatedData.basePrice || validatedData.price,
+      // Ensure slug is generated if not provided
+      slug: validatedData.slug || validatedData.name
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '')
     }
     
-    const product = await productRepository.create(validatedData)
+    const product = await productRepository.create(productData)
     
     return NextResponse.json({
       success: true,

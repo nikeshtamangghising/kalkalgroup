@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Product Creation with Images Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, select, textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        button { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .error { color: red; margin: 10px 0; }
+        .success { color: green; margin: 10px 0; }
+        .image-preview { max-width: 100px; max-height: 100px; margin: 5px; border: 1px solid #ddd; }
+        .image-container { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Product Creation with Images Test</h1>
+    
+    <form id="productForm">
+        <div class="form-group">
+            <label for="name">Product Name *</label>
+            <input type="text" id="name" name="name" required value="Test Product with Images">
+        </div>
+        
+        <div class="form-group">
+            <label for="price">Price *</label>
+            <input type="number" id="price" name="price" required step="0.01" min="0" value="299.99">
+        </div>
+        
+        <div class="form-group">
+            <label for="category">Category *</label>
+            <select id="category" name="category" required>
+                <option value="Edible Oils">Edible Oils</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="description">Description</label>
+            <textarea id="description" name="description" rows="3">This is a test product with image upload functionality</textarea>
+        </div>
+        
+        <div class="form-group">
+            <label for="stockQuantity">Stock Quantity</label>
+            <input type="number" id="stockQuantity" name="stockQuantity" value="25">
+        </div>
+        
+        <div class="form-group">
+            <label for="images">Product Images (Max 5, up to 10MB each)</label>
+            <input type="file" id="images" name="images" multiple accept="image/*">
+            <div id="imagePreview" class="image-container"></div>
+        </div>
+        
+        <button type="submit">Create Product</button>
+    </form>
+    
+    <div id="result"></div>
+
+    <script>
+        let selectedFiles = [];
+        
+        // Handle image selection and preview
+        document.getElementById('images').addEventListener('change', function(e) {
+            const files = Array.from(e.target.files);
+            
+            // Check limit
+            if (selectedFiles.length + files.length > 5) {
+                alert('Maximum 5 images allowed');
+                return;
+            }
+            
+            // Validate files
+            const validFiles = files.filter(file => {
+                if (!file.type.startsWith('image/')) {
+                    alert(`${file.name} is not a valid image`);
+                    return false;
+                }
+                if (file.size > 10 * 1024 * 1024) {
+                    alert(`${file.name} is too large (max 10MB)`);
+                    return false;
+                }
+                return true;
+            });
+            
+            selectedFiles = [...selectedFiles, ...validFiles];
+            updateImagePreview();
+        });
+        
+        function updateImagePreview() {
+            const preview = document.getElementById('imagePreview');
+            preview.innerHTML = '';
+            
+            selectedFiles.forEach((file, index) => {
+                const div = document.createElement('div');
+                div.style.position = 'relative';
+                div.style.display = 'inline-block';
+                
+                const img = document.createElement('img');
+                img.src = URL.createObjectURL(file);
+                img.className = 'image-preview';
+                
+                const removeBtn = document.createElement('button');
+                removeBtn.textContent = '×';
+                removeBtn.style.position = 'absolute';
+                removeBtn.style.top = '0';
+                removeBtn.style.right = '0';
+                removeBtn.style.background = 'red';
+                removeBtn.style.color = 'white';
+                removeBtn.style.border = 'none';
+                removeBtn.style.borderRadius = '50%';
+                removeBtn.style.cursor = 'pointer';
+                removeBtn.onclick = () => removeImage(index);
+                
+                div.appendChild(img);
+                div.appendChild(removeBtn);
+                preview.appendChild(div);
+            });
+        }
+        
+        function removeImage(index) {
+            selectedFiles.splice(index, 1);
+            updateImagePreview();
+        }
+        
+        // Handle form submission
+        document.getElementById('productForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>Creating product...</p>';
+            
+            try {
+                // Step 1: Upload images if any
+                let uploadedImages = [];
+                
+                if (selectedFiles.length > 0) {
+                    console.log('Uploading', selectedFiles.length, 'images...');
+                    
+                    const formData = new FormData();
+                    selectedFiles.forEach(file => {
+                        formData.append('files', file);
+                    });
+                    
+                    const uploadResponse = await fetch('/api/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const uploadResult = await uploadResponse.json();
+                    
+                    if (uploadResponse.ok && uploadResult.success) {
+                        uploadedImages = uploadResult.urls || [];
+                        console.log('Images uploaded:', uploadedImages);
+                        
+                        if (uploadResult.partialSuccess && uploadResult.warnings) {
+                            console.warn('Some uploads failed:', uploadResult.warnings);
+                        }
+                    } else {
+                        console.error('Upload failed:', uploadResult.error);
+                        // Continue without images
+                    }
+                }
+                
+                // Step 2: Create product
+                const formData = new FormData(e.target);
+                const productData = {
+                    name: formData.get('name'),
+                    description: formData.get('description'),
+                    price: parseFloat(formData.get('price')),
+                    category: formData.get('category'),
+                    stockQuantity: parseInt(formData.get('stockQuantity')) || 0,
+                    images: uploadedImages
+                };
+                
+                console.log('Creating product with data:', productData);
+                
+                const response = await fetch('/api/products', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(productData)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h3>✅ Product Created Successfully!</h3>
+                            <p><strong>Product ID:</strong> ${result.data?.id}</p>
+                            <p><strong>Name:</strong> ${result.data?.name}</p>
+                            <p><strong>Price:</strong> ${result.data?.basePrice}</p>
+                            <p><strong>Images:</strong> ${result.data?.images?.length || 0} uploaded</p>
+                            <p><strong>Thumbnail:</strong> ${result.data?.thumbnailUrl || 'None'}</p>
+                            ${result.data?.images?.length > 0 ? 
+                                `<p><strong>Image URLs:</strong></p><ul>${result.data.images.map(url => `<li><a href="${url}" target="_blank">${url}</a></li>`).join('')}</ul>` 
+                                : ''}
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h3>❌ Product Creation Failed</h3>
+                            <p><strong>Error:</strong> ${result.error}</p>
+                            ${result.details ? `<p><strong>Details:</strong><pre>${JSON.stringify(result.details, null, 2)}</pre></p>` : ''}
+                        </div>
+                    `;
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h3>❌ Error</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>
