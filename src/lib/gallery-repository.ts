@@ -125,7 +125,7 @@ export class GalleryRepository {
       
       return result[0] as unknown as GalleryItem
     } catch (error) {
-      logger.error('[GalleryRepository] Error fetching gallery item', { error })
+      console.error('[GalleryRepository] Error fetching gallery item', error)
       throw new Error(`Failed to fetch gallery item: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }

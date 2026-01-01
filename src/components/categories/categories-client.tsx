@@ -165,7 +165,6 @@ const CategoriesClient = memo(({ searchParams }: CategoriesClientProps) => {
         // Initial page with minimal page size for ultra-fast load
         params.set('page', '1')
         params.set('limit', '4') // Load only 4 products initially for premium feel
-        params.set('isActive', 'true')
 
         const productsResponse = await fetch(`/api/products?${params.toString()}`, {
           cache: 'force-cache', // Use aggressive caching for instant feel

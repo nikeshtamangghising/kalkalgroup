@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { GalleryRepository, type UpdateGalleryItem } from '@/lib/gallery-repository-simple'
+import { GalleryRepository, type UpdateGalleryItem } from '@/lib/gallery-repository'
 
 // Validation schema for gallery updates
 const updateGallerySchema = z.object({

@@ -1,7 +1,7 @@
 import 'server-only'
 import { db } from '@/lib/db'
 import { products, categories, brands } from './db/schema'
-import { eq, and, or, desc, sql, ilike, gte, lte } from 'drizzle-orm'
+import { eq, and, or, desc, asc, sql, ilike, gte, lte } from 'drizzle-orm'
 import type {
   Product,
   PaginatedResponse,
@@ -87,9 +87,22 @@ export class ProductRepository {
       }
     }
 
+    // Ensure unique slug
+    let slug = data.slug || data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    
+    // Check if slug already exists and generate a unique one if needed
+    let uniqueSlug = slug;
+    let counter = 1;
+    while (await this.findBySlug(uniqueSlug) !== null) {
+      uniqueSlug = `${slug}-${counter}`;
+      counter++;
+      // Prevent infinite loop
+      if (counter > 100) break; // Safety mechanism to prevent infinite loop
+    }
+    
     const dbData = {
       name: data.name,
-      slug: data.slug || data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+      slug: uniqueSlug,
       description: data.description || '',
       shortDescription: data.shortDescription || null,
       status: 'PUBLISHED',
@@ -469,6 +482,16 @@ export class ProductRepository {
     
     if (filters.isActive !== undefined) {
       whereConditions.push(eq(products.isActive, filters.isActive))
+    } else {
+      // By default, only show active products
+      whereConditions.push(eq(products.isActive, true))
+    }
+    
+    // By default, only show published products unless explicitly querying for other statuses
+    if (filters.status === undefined && filters.isActive !== false) {
+      whereConditions.push(eq(products.status, 'PUBLISHED'))
+    } else if (filters.status) {
+      whereConditions.push(eq(products.status, filters.status))
     }
 
     const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined
@@ -480,6 +503,32 @@ export class ProductRepository {
       .leftJoin(categories, eq(products.categoryId, categories.id))
       .leftJoin(brands, eq(products.brandId, brands.id))
       .where(whereClause)
+
+    // Determine sort order
+    let sortOrder;
+    switch (filters.sort) {
+      case 'price-asc':
+        sortOrder = asc(products.basePrice);
+        break;
+      case 'price-desc':
+        sortOrder = desc(products.basePrice);
+        break;
+      case 'name-asc':
+        sortOrder = asc(products.name);
+        break;
+      case 'name-desc':
+        sortOrder = desc(products.name);
+        break;
+      case 'newest':
+      case 'createdAt-desc':
+        sortOrder = desc(products.createdAt);
+        break;
+      case 'createdAt-asc':
+        sortOrder = asc(products.createdAt);
+        break;
+      default:
+        sortOrder = desc(products.createdAt); // Default to newest
+    }
 
     // Get products
     const productResults = await db
@@ -543,7 +592,7 @@ export class ProductRepository {
       .leftJoin(categories, eq(products.categoryId, categories.id))
       .leftJoin(brands, eq(products.brandId, brands.id))
       .where(whereClause)
-      .orderBy(desc(products.createdAt))
+      .orderBy(sortOrder)
       .limit(limit)
       .offset(offset)
 

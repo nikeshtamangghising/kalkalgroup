@@ -13,7 +13,8 @@ const filtersSchema = z.object({
   minPrice: z.number().optional(),
   maxPrice: z.number().optional(),
   isActive: z.boolean().optional(),
-  sort: z.enum(['price-asc', 'price-desc', 'name-asc', 'name-desc', 'newest']).default('newest')
+  status: z.string().optional(),
+  sort: z.enum(['price-asc', 'price-desc', 'name-asc', 'name-desc', 'newest', 'createdAt-asc', 'createdAt-desc']).default('newest')
 })
 
 const createProductSchema = z.object({
@@ -70,6 +71,7 @@ export async function GET(request: NextRequest) {
       minPrice: searchParams.get('minPrice') ? Number(searchParams.get('minPrice')) : undefined,
       maxPrice: searchParams.get('maxPrice') ? Number(searchParams.get('maxPrice')) : undefined,
       isActive: searchParams.get('isActive') ? searchParams.get('isActive') === 'true' : undefined,
+      status: searchParams.get('status') || undefined,
       sort: searchParams.get('sort') || 'newest'
     })
 

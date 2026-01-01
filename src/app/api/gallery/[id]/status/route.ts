@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { GalleryRepository } from '@/lib/gallery-repository-simple'
+import { GalleryRepository } from '@/lib/gallery-repository'
 
 interface RouteParams {
   params: Promise<{
