@@ -38,30 +38,6 @@ const FALLBACK_PRODUCTS: PreviewProduct[] = [
     price: 699,
     currency: 'NPR',
   },
-  {
-    id: 'fallback-4',
-    name: 'Stone-Ground Flour',
-    description: 'Slow-milled flour that keeps the nutrients and nostalgia intact.',
-    image: '/banner.jpg',
-    price: 549,
-    currency: 'NPR',
-  },
-  {
-    id: 'fallback-5',
-    name: 'Herbal Infused Ghee',
-    description: 'Slow-clarified ghee infused with Himalayan herbs for immunity.',
-    image: '/banner.jpg',
-    price: 899,
-    currency: 'NPR',
-  },
-  {
-    id: 'fallback-6',
-    name: 'Organic Buckwheat',
-    description: 'High-altitude buckwheat packed with minerals and rich flavor.',
-    image: '/banner.jpg',
-    price: 649,
-    currency: 'NPR',
-  },
 ]
 
 const ProductPreview = memo(() => {
@@ -74,7 +50,7 @@ const ProductPreview = memo(() => {
 
     const fetchProducts = async () => {
       try {
-        const response = await fetch('/api/products?page=1&limit=6&isActive=true', {
+        const response = await fetch('/api/products?page=1&limit=3&isActive=true', {
           signal: controller.signal,
           cache: 'no-store',
         })
@@ -85,7 +61,7 @@ const ProductPreview = memo(() => {
 
         const payload = await response.json()
         if (payload?.data && Array.isArray(payload.data)) {
-          const mapped: PreviewProduct[] = payload.data.slice(0, 6).map((product: any, index: number) => ({
+          const mapped: PreviewProduct[] = payload.data.slice(0, 3).map((product: any, index: number) => ({
             id: product.id ?? `product-${index}`,
             name: product.name ?? 'Kal Kal Product',
             description:
