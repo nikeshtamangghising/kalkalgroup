@@ -31,6 +31,8 @@ function AdminProductsPageContent() {
   const [categories, setCategories] = useState<string[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [showActiveOnly, setShowActiveOnly] = useState(true)
+  const [sortField, setSortField] = useState<string>('createdAt')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [successMessage, setSuccessMessage] = useState<string>('')
   const [recalcLoading, setRecalcLoading] = useState(false)
   const [recalcMessage, setRecalcMessage] = useState<string>('')
@@ -57,7 +59,7 @@ function AdminProductsPageContent() {
 
   useEffect(() => {
     fetchProducts()
-  }, [currentPage, searchQuery, selectedCategory, showActiveOnly])
+  }, [currentPage, searchQuery, selectedCategory, showActiveOnly, sortField, sortDirection])
 
   const fetchCategories = async () => {
     try {
@@ -81,6 +83,7 @@ function AdminProductsPageContent() {
       const params = new URLSearchParams({
         page: currentPage.toString(),
         limit: '10',
+        sort: `${sortField}-${sortDirection}`,
       })
 
       if (searchQuery) params.append('search', searchQuery)
@@ -179,6 +182,17 @@ function AdminProductsPageContent() {
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      // If clicking the same field, toggle direction
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      // If clicking a new field, set it as the sort field with default 'desc' direction
+      setSortField(field)
+      setSortDirection('desc')
+    }
   }
 
   return (
@@ -359,20 +373,60 @@ function AdminProductsPageContent() {
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Product
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700"
+                              onClick={() => handleSort('name')}>
+                            <div className="flex items-center">
+                              Product
+                              {sortField === 'name' && (
+                                <span className="ml-1">
+                                  {sortDirection === 'asc' ? '↑' : '↓'}
+                                </span>
+                              )}
+                            </div>
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Category
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700"
+                              onClick={() => handleSort('category')}>
+                            <div className="flex items-center">
+                              Category
+                              {sortField === 'category' && (
+                                <span className="ml-1">
+                                  {sortDirection === 'asc' ? '↑' : '↓'}
+                                </span>
+                              )}
+                            </div>
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Price
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700"
+                              onClick={() => handleSort('basePrice')}>
+                            <div className="flex items-center">
+                              Price
+                              {sortField === 'basePrice' && (
+                                <span className="ml-1">
+                                  {sortDirection === 'asc' ? '↑' : '↓'}
+                                </span>
+                              )}
+                            </div>
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Inventory
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700"
+                              onClick={() => handleSort('inventory')}>
+                            <div className="flex items-center">
+                              Inventory
+                              {sortField === 'inventory' && (
+                                <span className="ml-1">
+                                  {sortDirection === 'asc' ? '↑' : '↓'}
+                                </span>
+                              )}
+                            </div>
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Status
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700"
+                              onClick={() => handleSort('status')}>
+                            <div className="flex items-center">
+                              Status
+                              {sortField === 'status' && (
+                                <span className="ml-1">
+                                  {sortDirection === 'asc' ? '↑' : '↓'}
+                                </span>
+                              )}
+                            </div>
                           </th>
                           <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Actions

@@ -6,7 +6,6 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const includeInactive = searchParams.get('includeInactive') === 'true'
-    const search = searchParams.get('search') || undefined
 
     // Use repository to get all categories (flat structure like brands)
     const categories = await categoryRepository.getAllFlat(includeInactive)
@@ -25,15 +24,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-const createCategorySchema = {
-  name: 'string',
-  description: 'string',
-  parent_id: 'string',
-  metaTitle: 'string',
-  metaDescription: 'string',
-  image: 'string'
-}
-
+// POST method for creating categories
 export const POST = createAdminHandler(async (request: NextRequest) => {
   try {
     const body = await request.json()

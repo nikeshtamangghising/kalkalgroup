@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeftIcon } from '@heroicons/react/24/outline'
 import AdminLayout from '@/components/admin/admin-layout'
@@ -10,9 +10,22 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import Button from '@/components/ui/button'
 import Input from '@/components/ui/input'
 import Loading from '@/components/ui/loading'
+import { Product } from '@/types'
 
-function NewProductPageContent() {
+function EditProductPageContent() {
   const router = useRouter()
+  const params = useParams()
+  const productId = params.id as string
+  
+  const [loading, setLoading] = useState(false)
+  const [fetchLoading, setFetchLoading] = useState(true)
+  const [error, setError] = useState<string>('')
+  const [success, setSuccess] = useState<string>('')
+  const [categories, setCategories] = useState<string[]>([])
+  const [brands, setBrands] = useState<string[]>([])
+  const [product, setProduct] = useState<Product | null>(null)
+
+  // Form state
   const [imageFiles, setImageFiles] = useState<File[]>([])
   const [imagePreviews, setImagePreviews] = useState<string[]>([])
   
@@ -27,13 +40,6 @@ function NewProductPageContent() {
     setImagePreviews(newImagePreviews)
   }
   
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string>('')
-  const [success, setSuccess] = useState<string>('')
-  const [categories, setCategories] = useState<string[]>([])
-  const [brands, setBrands] = useState<string[]>([])
-
-  // Form state
   const [formData, setFormData] = useState({
     name: '',
     slug: '',
@@ -49,8 +55,8 @@ function NewProductPageContent() {
       width: '',
       height: ''
     },
-    category: '',
-    brand: '',
+    categoryId: '',
+    brandId: '',
     tags: '',
     isActive: true,
     stockQuantity: '0',
@@ -60,9 +66,61 @@ function NewProductPageContent() {
   })
 
   useEffect(() => {
-    fetchCategories()
-    fetchBrands()
-  }, [])
+    if (productId) {
+      fetchProduct()
+      fetchCategories()
+      fetchBrands()
+    }
+  }, [productId])
+
+  const fetchProduct = async () => {
+    try {
+      setFetchLoading(true)
+      const response = await fetch(`/api/products/${productId}`)
+      
+      if (!response.ok) {
+        throw new Error('Product not found')
+      }
+      
+      const data = await response.json()
+      const productData = data.data || data
+      
+      setProduct(productData)
+      setFormData({
+        name: productData.name || '',
+        slug: productData.slug || '',
+        description: productData.description || '',
+        sku: productData.sku || '',
+        barcode: productData.barcode || '',
+        price: productData.price?.toString() || '',
+        purchasePrice: productData.purchasePrice?.toString() || '',
+        discountPrice: productData.discountPrice?.toString() || '',
+        weight: productData.weight?.toString() || '',
+        dimensions: {
+          length: productData.length?.toString() || '',
+          width: productData.width?.toString() || '',
+          height: productData.height?.toString() || ''
+        },
+        categoryId: productData.categoryId || '',
+        brandId: productData.brandId || '',
+        tags: productData.tags ? productData.tags.join(', ') : '',
+        isActive: productData.isActive ?? true,
+        stockQuantity: productData.stockQuantity?.toString() || '0',
+        minStockLevel: productData.minStockLevel?.toString() || '5',
+        trackInventory: productData.trackInventory ?? true,
+        images: productData.images || []
+      })
+      
+      // Set initial image previews
+      if (productData.images && Array.isArray(productData.images)) {
+        setImagePreviews(productData.images)
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to fetch product')
+    } finally {
+      setFetchLoading(false)
+    }
+  }
 
   const fetchCategories = async () => {
     try {
@@ -123,43 +181,43 @@ function NewProductPageContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setSubmitting(true)
+    setLoading(true)
     setError('')
     setSuccess('')
 
     try {
       // Validate required fields
-      if (!formData.name || !formData.price || !formData.category) {
+      if (!formData.name || !formData.price || !formData.categoryId) {
         throw new Error('Name, price, and category are required')
       }
 
       // Upload images if provided
-      const images: string[] = []
+      let images = [...formData.images]; // Start with existing images
       
       if (imageFiles.length > 0) {
         try {
           // Upload images to Cloudinary
-          const formData = new FormData()
+          const formDataUpload = new FormData()
           imageFiles.forEach((file) => {
-            formData.append('files', file)
+            formDataUpload.append('files', file)
           })
           
           const uploadResponse = await fetch('/api/upload', {
             method: 'POST',
-            body: formData,
+            body: formDataUpload,
           })
           
           if (uploadResponse.ok) {
             const uploadResult = await uploadResponse.json()
             if (uploadResult.success && uploadResult.data) {
-              images.push(...uploadResult.data)
+              images = [...images, ...uploadResult.data]
             } else if (uploadResult.urls) {
-              images.push(...uploadResult.urls)
+              images = [...images, ...uploadResult.urls]
             }
           }
         } catch (uploadError) {
           console.error('Image upload failed:', uploadError)
-          setError('Failed to upload images. Product will be created without images.')
+          setError('Failed to upload new images. Product will be updated without new images.')
         }
       }
 
@@ -168,27 +226,27 @@ function NewProductPageContent() {
         name: formData.name,
         slug: formData.slug || generateSlug(formData.name),
         description: formData.description || null,
-        sku: formData.sku || null,
-        barcode: formData.barcode || null,
+        sku: formData.barcode || formData.sku || null,
         price: parseFloat(formData.price),
         purchasePrice: formData.purchasePrice ? parseFloat(formData.purchasePrice) : null,
         discountPrice: formData.discountPrice ? parseFloat(formData.discountPrice) : null,
         weight: formData.weight ? parseFloat(formData.weight) : null,
-        length: formData.dimensions.length ? parseFloat(formData.dimensions.length) : null,
-        width: formData.dimensions.width ? parseFloat(formData.dimensions.width) : null,
-        height: formData.dimensions.height ? parseFloat(formData.dimensions.height) : null,
-        category: formData.category,
-        brand: formData.brand || null,
+        dimensions: formData.dimensions.length || formData.dimensions.width || formData.dimensions.height ? {
+          length: formData.dimensions.length || null,
+          width: formData.dimensions.width || null,
+          height: formData.dimensions.height || null,
+        } : null,
+        categoryId: formData.categoryId,
+        brandId: formData.brandId || null,
         tags: formData.tags ? formData.tags.split(',').map(tag => tag.trim()).filter(Boolean) : [],
         isActive: formData.isActive,
-        stockQuantity: parseInt(formData.stockQuantity) || 0,
-        minStockLevel: parseInt(formData.minStockLevel) || 5,
-        trackInventory: formData.trackInventory,
+        inventory: parseInt(formData.stockQuantity) || 0,
+        lowStockThreshold: parseInt(formData.minStockLevel) || 5,
         images: images
       }
 
-      const response = await fetch('/api/products', {
-        method: 'POST',
+      const response = await fetch(`/api/products/${productId}`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
         },
@@ -197,29 +255,50 @@ function NewProductPageContent() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Failed to create product')
+        throw new Error(errorData.error || 'Failed to update product')
       }
 
       await response.json() // Consume the response
-      setSuccess('Product created successfully!')
+      setSuccess('Product updated successfully!')
       
       // Redirect to products page with success message
       setTimeout(() => {
-        router.push('/admin/products?created=true')
+        router.push('/admin/products?updated=true')
       }, 1500)
 
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to create product')
+      setError(error instanceof Error ? error.message : 'Failed to update product')
     } finally {
-      setSubmitting(false)
+      setLoading(false)
     }
   }
 
-  if (submitting && !error && !success) {
+  if (fetchLoading) {
     return (
       <AdminLayout>
         <div className="flex items-center justify-center h-64">
           <Loading />
+        </div>
+      </AdminLayout>
+    )
+  }
+
+  if (error && !product) {
+    return (
+      <AdminLayout>
+        <div className="space-y-6">
+          <div className="flex items-center space-x-4">
+            <Link href="/admin/products">
+              <Button variant="outline" className="flex items-center space-x-2">
+                <ArrowLeftIcon className="h-4 w-4" />
+                <span>Back to Products</span>
+              </Button>
+            </Link>
+          </div>
+          
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+            {error}
+          </div>
         </div>
       </AdminLayout>
     )
@@ -237,8 +316,8 @@ function NewProductPageContent() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Add New Product</h1>
-            <p className="text-gray-600">Create a new product for your inventory</p>
+            <h1 className="text-2xl font-bold text-gray-900">Edit Product</h1>
+            <p className="text-gray-600">Update product information</p>
           </div>
         </div>
 
@@ -323,10 +402,10 @@ function NewProductPageContent() {
                     Barcode
                   </label>
                   <Input
-                    name="barcode"
-                    value={formData.barcode}
+                    name="sku"
+                    value={formData.sku}
                     onChange={handleInputChange}
-                    placeholder="1234567890123"
+                    placeholder="SKU-001"
                   />
                 </div>
               </div>
@@ -387,8 +466,8 @@ function NewProductPageContent() {
                     Category *
                   </label>
                   <select
-                    name="category"
-                    value={formData.category}
+                    name="categoryId"
+                    value={formData.categoryId}
                     onChange={handleInputChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
@@ -407,8 +486,8 @@ function NewProductPageContent() {
                     Brand
                   </label>
                   <select
-                    name="brand"
-                    value={formData.brand}
+                    name="brandId"
+                    value={formData.brandId}
                     onChange={handleInputChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
@@ -445,7 +524,7 @@ function NewProductPageContent() {
                   </label>
                   <Input
                     name="dimensions.length"
-                    value={formData.dimensions.length}
+                    value={formData.dimensions?.length || ''}
                     onChange={handleInputChange}
                     type="number"
                     step="0.01"
@@ -460,7 +539,7 @@ function NewProductPageContent() {
                   </label>
                   <Input
                     name="dimensions.width"
-                    value={formData.dimensions.width}
+                    value={formData.dimensions?.width || ''}
                     onChange={handleInputChange}
                     type="number"
                     step="0.01"
@@ -475,7 +554,7 @@ function NewProductPageContent() {
                   </label>
                   <Input
                     name="dimensions.height"
-                    value={formData.dimensions.height}
+                    value={formData.dimensions?.height || ''}
                     onChange={handleInputChange}
                     type="number"
                     step="0.01"
@@ -485,63 +564,62 @@ function NewProductPageContent() {
                 </div>
               </div>
 
-              {/* Product Image */}
+              {/* Tags */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Product Image
+                  Tags
+                </label>
+                <Input
+                  name="tags"
+                  value={formData.tags}
+                  onChange={handleInputChange}
+                  placeholder="tag1, tag2, tag3"
+                />
+                <p className="text-sm text-gray-500 mt-1">
+                  Separate tags with commas
+                </p>
+              </div>
+
+              {/* Product Images */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Product Images
                 </label>
                 <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md hover:border-gray-400">
-                  <div className="space-y-1 text-center">
-                    <div className="flex justify-center">
-                                            {imagePreviews.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {imagePreviews.map((preview, index) => (
-                            <div key={index} className="relative">
-                              <img
-                                src={preview}
-                                alt={`Product preview ${index + 1}`}
-                                className="h-32 w-32 object-cover rounded"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => removeImage(index)}
-                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="h-32 w-32 flex items-center justify-center bg-gray-100 rounded">
-                          <svg
-                            className="h-12 w-12 text-gray-400"
-                            stroke="currentColor"
-                            fill="none"
-                            viewBox="0 0 48 48"
-                          >
-                            <path
-                              d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                              strokeWidth={2}
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
+                  <div className="space-y-1 text-center w-full">
+                    {imagePreviews.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        {imagePreviews.map((preview, index) => (
+                          <div key={index} className="relative">
+                            <img
+                              src={preview}
+                              alt={`Product preview ${index + 1}`}
+                              className="h-32 w-32 object-cover rounded"
                             />
-                          </svg>
-                        </div>
-                      )}
-                    </div>
+                            <button
+                              type="button"
+                              onClick={() => removeImage(index)}
+                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <div className="flex text-sm text-gray-600">
                       <label
                         htmlFor="image-upload"
                         className="relative cursor-pointer rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500"
                       >
-                        <span>Upload a file</span>
+                        <span>Upload files</span>
                         <input
                           id="image-upload"
                           name="image-upload"
                           type="file"
                           className="sr-only"
                           accept="image/*"
+                          multiple
                           onChange={(e) => {
                             const files = e.target.files
                             if (files && files.length > 0) {
@@ -565,22 +643,6 @@ function NewProductPageContent() {
                     <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</p>
                   </div>
                 </div>
-              </div>
-
-              {/* Tags */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tags
-                </label>
-                <Input
-                  name="tags"
-                  value={formData.tags}
-                  onChange={handleInputChange}
-                  placeholder="tag1, tag2, tag3"
-                />
-                <p className="text-sm text-gray-500 mt-1">
-                  Separate tags with commas
-                </p>
               </div>
 
               {/* Inventory */}
@@ -648,8 +710,8 @@ function NewProductPageContent() {
                     Cancel
                   </Button>
                 </Link>
-                <Button type="submit" disabled={submitting}>
-                  {submitting ? 'Creating...' : 'Create Product'}
+                <Button type="submit" disabled={loading}>
+                  {loading ? 'Updating...' : 'Update Product'}
                 </Button>
               </div>
             </form>
@@ -660,10 +722,10 @@ function NewProductPageContent() {
   )
 }
 
-export default function NewProductPage() {
+export default function EditProductPage() {
   return (
     <AdminProtectedRoute>
-      <NewProductPageContent />
+      <EditProductPageContent />
     </AdminProtectedRoute>
   )
 }

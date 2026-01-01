@@ -57,20 +57,74 @@ export class ProductRepository {
   async create(data: any): Promise<Product> {
     await this.isDatabaseAvailable()
 
+    // Handle category name to ID conversion
+    let categoryId = data.categoryId
+    if (data.category && typeof data.category === 'string') {
+      // If category is a name, find the ID
+      const category = await db
+        .select({ id: categories.id })
+        .from(categories)
+        .where(eq(categories.name, data.category))
+        .limit(1)
+      
+      if (category.length > 0) {
+        categoryId = category[0].id
+      }
+    }
+
+    // Handle brand name to ID conversion  
+    let brandId = data.brandId
+    if (data.brand && typeof data.brand === 'string') {
+      // If brand is a name, find the ID
+      const brand = await db
+        .select({ id: brands.id })
+        .from(brands)
+        .where(eq(brands.name, data.brand))
+        .limit(1)
+      
+      if (brand.length > 0) {
+        brandId = brand[0].id
+      }
+    }
+
     const dbData = {
       name: data.name,
-      slug: data.slug,
-      description: data.description,
-      shortDescription: data.shortDescription,
+      slug: data.slug || data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+      description: data.description || '',
+      shortDescription: data.shortDescription || null,
       status: 'PUBLISHED',
-      brandId: data.brandId,
-      categoryId: data.categoryId,
-      thumbnailUrl: data.images?.[0] || null,
+      brandId: brandId || null,
+      categoryId: categoryId || null,
+      thumbnailUrl: data.images?.[0] || data.thumbnailUrl || null,
+      images: data.images && Array.isArray(data.images) && data.images.length > 0 ? data.images : [],
       basePrice: data.price,
+      price: data.discountPrice || null,
+      discountPrice: data.discountPrice || null,
+      purchasePrice: data.purchasePrice || null,
       currency: data.currency || 'NPR',
-      seoTitle: data.name,
-      seoDescription: data.shortDescription,
       tags: data.tags || [],
+      sku: data.sku || null,
+      isActive: data.isActive !== undefined ? data.isActive : true,
+      isFeatured: data.isFeatured || false,
+      isNewArrival: data.isNewArrival || false,
+      inventory: data.stockQuantity || 0,
+      lowStockThreshold: data.minStockLevel || 5,
+      seoTitle: data.name,
+      seoDescription: data.shortDescription || data.description?.substring(0, 160) || null,
+      // Handle dimensions
+      weight: data.weight ? data.weight.toString() : null,
+      // Store dimensions as JSON in attributes or separate fields if they exist
+      attributes: data.weight || data.length || data.width || data.height ? {
+        weight: data.weight,
+        length: data.length,
+        width: data.width,
+        height: data.height,
+        dimensions: {
+          length: data.length,
+          width: data.width,
+          height: data.height
+        }
+      } : null,
     };
 
     const [inserted] = await db
@@ -106,21 +160,125 @@ export class ProductRepository {
         thumbnailUrl: products.thumbnailUrl,
         images: products.images,
         basePrice: products.basePrice,
+        price: products.price,
+        discountPrice: products.discountPrice,
+        purchasePrice: products.purchasePrice,
         currency: products.currency,
-        inventory: products.inventory,
+        sku: products.sku,
         isActive: products.isActive,
         isFeatured: products.isFeatured,
         isNewArrival: products.isNewArrival,
-        tags: products.tags,
+        inventory: products.inventory,
+        lowStockThreshold: products.lowStockThreshold,
+        orderCount: products.orderCount,
+        purchaseCount: products.purchaseCount,
+        viewCount: products.viewCount,
+        popularityScore: products.popularityScore,
+        ratingAvg: products.ratingAvg,
+        ratingCount: products.ratingCount,
+        seoTitle: products.seoTitle,
+        seoDescription: products.seoDescription,
+        metaTitle: products.metaTitle,
+        metaDescription: products.metaDescription,
+        weight: products.weight,
+        dimensions: products.dimensions,
         attributes: products.attributes,
+        tags: products.tags,
         createdAt: products.createdAt,
         updatedAt: products.updatedAt,
+        // Include related category data
+        categoryName: categories.name,
+        categoryDescription: categories.description,
+        categorySlug: categories.slug,
+        categoryIsActive: categories.isActive,
+        categorySortOrder: categories.sortOrder,
+        categoryCreatedAt: categories.createdAt,
+        categoryUpdatedAt: categories.updatedAt,
+        // Include related brand data
+        brandName: brands.name,
+        brandSlug: brands.slug,
+        brandDescription: brands.description,
+        brandLogoUrl: brands.logoUrl,
+        brandWebsite: brands.website,
+        brandIsActive: brands.isActive,
+        brandCreatedAt: brands.createdAt,
+        brandUpdatedAt: brands.updatedAt,
       })
       .from(products)
+      .leftJoin(categories, eq(products.categoryId, categories.id))
+      .leftJoin(brands, eq(products.brandId, brands.id))
       .where(eq(products.id, id))
       .limit(1)
 
-    return result[0] as unknown as Product || null
+    if (result.length === 0) return null
+    
+    const row = result[0]
+    
+    // Construct the product object with nested category and brand
+    const product: any = {
+      id: row.id,
+      name: row.name,
+      slug: row.slug,
+      description: row.description,
+      shortDescription: row.shortDescription,
+      status: row.status,
+      brandId: row.brandId,
+      categoryId: row.categoryId,
+      thumbnailUrl: row.thumbnailUrl,
+      images: row.images,
+      basePrice: row.basePrice,
+      price: row.price,
+      discountPrice: row.discountPrice,
+      purchasePrice: row.purchasePrice,
+      currency: row.currency,
+      sku: row.sku,
+      isActive: row.isActive,
+      isFeatured: row.isFeatured,
+      isNewArrival: row.isNewArrival,
+      inventory: row.inventory,
+      lowStockThreshold: row.lowStockThreshold,
+      orderCount: row.orderCount,
+      purchaseCount: row.purchaseCount,
+      viewCount: row.viewCount,
+      popularityScore: row.popularityScore,
+      ratingAvg: row.ratingAvg,
+      ratingCount: row.ratingCount,
+      seoTitle: row.seoTitle,
+      seoDescription: row.seoDescription,
+      metaTitle: row.metaTitle,
+      metaDescription: row.metaDescription,
+      weight: row.weight,
+      dimensions: row.dimensions,
+      attributes: row.attributes,
+      tags: row.tags,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      // Add nested category object
+      category: row.categoryName ? {
+        id: row.categoryId,
+        name: row.categoryName,
+        description: row.categoryDescription,
+        slug: row.categorySlug,
+        isActive: row.categoryIsActive,
+        sortOrder: row.categorySortOrder,
+        createdAt: row.categoryCreatedAt,
+        updatedAt: row.categoryUpdatedAt,
+      } : null,
+      // Add nested brand object
+      brand: row.brandName ? {
+        id: row.brandId,
+        name: row.brandName,
+        slug: row.brandSlug,
+        description: row.brandDescription,
+        logoUrl: row.brandLogoUrl,
+        website: row.brandWebsite,
+        isActive: row.brandIsActive,
+        createdAt: row.brandCreatedAt,
+        updatedAt: row.brandUpdatedAt,
+      } : null,
+    }
+    
+    return product as Product
   }
 
   async findBySlug(slug: string): Promise<Product | null> {
@@ -139,21 +297,125 @@ export class ProductRepository {
         thumbnailUrl: products.thumbnailUrl,
         images: products.images,
         basePrice: products.basePrice,
+        price: products.price,
+        discountPrice: products.discountPrice,
+        purchasePrice: products.purchasePrice,
         currency: products.currency,
-        inventory: products.inventory,
+        sku: products.sku,
         isActive: products.isActive,
         isFeatured: products.isFeatured,
         isNewArrival: products.isNewArrival,
-        tags: products.tags,
+        inventory: products.inventory,
+        lowStockThreshold: products.lowStockThreshold,
+        orderCount: products.orderCount,
+        purchaseCount: products.purchaseCount,
+        viewCount: products.viewCount,
+        popularityScore: products.popularityScore,
+        ratingAvg: products.ratingAvg,
+        ratingCount: products.ratingCount,
+        seoTitle: products.seoTitle,
+        seoDescription: products.seoDescription,
+        metaTitle: products.metaTitle,
+        metaDescription: products.metaDescription,
+        weight: products.weight,
+        dimensions: products.dimensions,
         attributes: products.attributes,
+        tags: products.tags,
         createdAt: products.createdAt,
         updatedAt: products.updatedAt,
+        // Include related category data
+        categoryName: categories.name,
+        categoryDescription: categories.description,
+        categorySlug: categories.slug,
+        categoryIsActive: categories.isActive,
+        categorySortOrder: categories.sortOrder,
+        categoryCreatedAt: categories.createdAt,
+        categoryUpdatedAt: categories.updatedAt,
+        // Include related brand data
+        brandName: brands.name,
+        brandSlug: brands.slug,
+        brandDescription: brands.description,
+        brandLogoUrl: brands.logoUrl,
+        brandWebsite: brands.website,
+        brandIsActive: brands.isActive,
+        brandCreatedAt: brands.createdAt,
+        brandUpdatedAt: brands.updatedAt,
       })
       .from(products)
+      .leftJoin(categories, eq(products.categoryId, categories.id))
+      .leftJoin(brands, eq(products.brandId, brands.id))
       .where(eq(products.slug, slug))
       .limit(1)
 
-    return result[0] as unknown as Product || null
+    if (result.length === 0) return null
+    
+    const row = result[0]
+    
+    // Construct the product object with nested category and brand
+    const product: any = {
+      id: row.id,
+      name: row.name,
+      slug: row.slug,
+      description: row.description,
+      shortDescription: row.shortDescription,
+      status: row.status,
+      brandId: row.brandId,
+      categoryId: row.categoryId,
+      thumbnailUrl: row.thumbnailUrl,
+      images: row.images,
+      basePrice: row.basePrice,
+      price: row.price,
+      discountPrice: row.discountPrice,
+      purchasePrice: row.purchasePrice,
+      currency: row.currency,
+      sku: row.sku,
+      isActive: row.isActive,
+      isFeatured: row.isFeatured,
+      isNewArrival: row.isNewArrival,
+      inventory: row.inventory,
+      lowStockThreshold: row.lowStockThreshold,
+      orderCount: row.orderCount,
+      purchaseCount: row.purchaseCount,
+      viewCount: row.viewCount,
+      popularityScore: row.popularityScore,
+      ratingAvg: row.ratingAvg,
+      ratingCount: row.ratingCount,
+      seoTitle: row.seoTitle,
+      seoDescription: row.seoDescription,
+      metaTitle: row.metaTitle,
+      metaDescription: row.metaDescription,
+      weight: row.weight,
+      dimensions: row.dimensions,
+      attributes: row.attributes,
+      tags: row.tags,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      // Add nested category object
+      category: row.categoryName ? {
+        id: row.categoryId,
+        name: row.categoryName,
+        description: row.categoryDescription,
+        slug: row.categorySlug,
+        isActive: row.categoryIsActive,
+        sortOrder: row.categorySortOrder,
+        createdAt: row.categoryCreatedAt,
+        updatedAt: row.categoryUpdatedAt,
+      } : null,
+      // Add nested brand object
+      brand: row.brandName ? {
+        id: row.brandId,
+        name: row.brandName,
+        slug: row.brandSlug,
+        description: row.brandDescription,
+        logoUrl: row.brandLogoUrl,
+        website: row.brandWebsite,
+        isActive: row.brandIsActive,
+        createdAt: row.brandCreatedAt,
+        updatedAt: row.brandUpdatedAt,
+      } : null,
+    }
+    
+    return product as Product
   }
 
   async findBySku(_sku: string): Promise<Product | null> {
@@ -177,7 +439,22 @@ export class ProductRepository {
     const whereConditions = []
     
     if (filters.category) {
-      whereConditions.push(eq(products.categoryId, filters.category))
+      // Handle category by name or ID
+      if (filters.category.length === 36 && filters.category.includes('-')) {
+        // It's a UUID (category ID)
+        whereConditions.push(eq(products.categoryId, filters.category))
+      } else {
+        // It's a category name, need to find the category by name
+        const category = await db
+          .select({ id: categories.id })
+          .from(categories)
+          .where(eq(categories.name, filters.category))
+          .limit(1)
+        
+        if (category.length > 0) {
+          whereConditions.push(eq(products.categoryId, category[0].id))
+        }
+      }
     }
     
     if (filters.minPrice !== undefined) {
@@ -189,7 +466,7 @@ export class ProductRepository {
     }
     
     if (filters.isActive !== undefined) {
-      whereConditions.push(eq(products.status, filters.isActive ? 'ACTIVE' : 'DRAFT'))
+      whereConditions.push(eq(products.isActive, filters.isActive))
     }
 
     const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined
@@ -198,6 +475,8 @@ export class ProductRepository {
     const [{ count }] = await db
       .select({ count: sql`count(*)` })
       .from(products)
+      .leftJoin(categories, eq(products.categoryId, categories.id))
+      .leftJoin(brands, eq(products.brandId, brands.id))
       .where(whereClause)
 
     // Get products
@@ -214,24 +493,128 @@ export class ProductRepository {
         thumbnailUrl: products.thumbnailUrl,
         images: products.images,
         basePrice: products.basePrice,
+        price: products.price,
+        discountPrice: products.discountPrice,
+        purchasePrice: products.purchasePrice,
         currency: products.currency,
-        inventory: products.inventory,
+        sku: products.sku,
         isActive: products.isActive,
         isFeatured: products.isFeatured,
         isNewArrival: products.isNewArrival,
-        tags: products.tags,
+        inventory: products.inventory,
+        lowStockThreshold: products.lowStockThreshold,
+        orderCount: products.orderCount,
+        purchaseCount: products.purchaseCount,
+        viewCount: products.viewCount,
+        popularityScore: products.popularityScore,
+        ratingAvg: products.ratingAvg,
+        ratingCount: products.ratingCount,
+        seoTitle: products.seoTitle,
+        seoDescription: products.seoDescription,
+        metaTitle: products.metaTitle,
+        metaDescription: products.metaDescription,
+        weight: products.weight,
+        dimensions: products.dimensions,
         attributes: products.attributes,
+        tags: products.tags,
         createdAt: products.createdAt,
         updatedAt: products.updatedAt,
-              })
+        // Include related category data
+        categoryName: categories.name,
+        categoryDescription: categories.description,
+        categorySlug: categories.slug,
+        categoryIsActive: categories.isActive,
+        categorySortOrder: categories.sortOrder,
+        categoryCreatedAt: categories.createdAt,
+        categoryUpdatedAt: categories.updatedAt,
+        // Include related brand data
+        brandName: brands.name,
+        brandSlug: brands.slug,
+        brandDescription: brands.description,
+        brandLogoUrl: brands.logoUrl,
+        brandWebsite: brands.website,
+        brandIsActive: brands.isActive,
+        brandCreatedAt: brands.createdAt,
+        brandUpdatedAt: brands.updatedAt,
+      })
       .from(products)
+      .leftJoin(categories, eq(products.categoryId, categories.id))
+      .leftJoin(brands, eq(products.brandId, brands.id))
       .where(whereClause)
       .orderBy(desc(products.createdAt))
       .limit(limit)
       .offset(offset)
 
+    // Process results to include nested category and brand objects
+    const processedResults = productResults.map(row => {
+      const product: any = {
+        id: row.id,
+        name: row.name,
+        slug: row.slug,
+        description: row.description,
+        shortDescription: row.shortDescription,
+        status: row.status,
+        brandId: row.brandId,
+        categoryId: row.categoryId,
+        thumbnailUrl: row.thumbnailUrl,
+        images: row.images,
+        basePrice: row.basePrice,
+        price: row.price,
+        discountPrice: row.discountPrice,
+        purchasePrice: row.purchasePrice,
+        currency: row.currency,
+        sku: row.sku,
+        isActive: row.isActive,
+        isFeatured: row.isFeatured,
+        isNewArrival: row.isNewArrival,
+        inventory: row.inventory,
+        lowStockThreshold: row.lowStockThreshold,
+        orderCount: row.orderCount,
+        purchaseCount: row.purchaseCount,
+        viewCount: row.viewCount,
+        popularityScore: row.popularityScore,
+        ratingAvg: row.ratingAvg,
+        ratingCount: row.ratingCount,
+        seoTitle: row.seoTitle,
+        seoDescription: row.seoDescription,
+        metaTitle: row.metaTitle,
+        metaDescription: row.metaDescription,
+        weight: row.weight,
+        dimensions: row.dimensions,
+        attributes: row.attributes,
+        tags: row.tags,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+        // Add nested category object
+        category: row.categoryName ? {
+          id: row.categoryId,
+          name: row.categoryName,
+          description: row.categoryDescription,
+          slug: row.categorySlug,
+          isActive: row.categoryIsActive,
+          sortOrder: row.categorySortOrder,
+          createdAt: row.categoryCreatedAt,
+          updatedAt: row.categoryUpdatedAt,
+        } : null,
+        // Add nested brand object
+        brand: row.brandName ? {
+          id: row.brandId,
+          name: row.brandName,
+          slug: row.brandSlug,
+          description: row.brandDescription,
+          logoUrl: row.brandLogoUrl,
+          website: row.brandWebsite,
+          isActive: row.brandIsActive,
+          createdAt: row.brandCreatedAt,
+          updatedAt: row.brandUpdatedAt,
+        } : null,
+      }
+      
+      return product as Product
+    })
+
     return {
-      data: productResults as unknown as Product[],
+      data: processedResults,
       pagination: {
         page,
         limit,
@@ -263,8 +646,25 @@ export class ProductRepository {
     if (data.categoryId) dbData.categoryId = data.categoryId
     if (data.brandId) dbData.brandId = data.brandId
     if (data.tags) dbData.tags = data.tags
-    if (data.images && data.images.length > 0) {
-      dbData.thumbnailUrl = data.images[0]
+    if (data.images && Array.isArray(data.images)) {
+      dbData.images = data.images
+      if (data.images.length > 0) {
+        dbData.thumbnailUrl = data.images[0]
+      }
+    }
+    
+    // Handle dimensions - store as JSON in dimensions column
+    if (data.dimensions) {
+      dbData.dimensions = data.dimensions
+    }
+    
+    // Handle length, width, height separately if provided (for backward compatibility)
+    if (data.length || data.width || data.height) {
+      const dimensions = dbData.dimensions || {}
+      dimensions.length = data.length || dimensions.length
+      dimensions.width = data.width || dimensions.width
+      dimensions.height = data.height || dimensions.height
+      dbData.dimensions = dimensions
     }
 
     const [updated] = await db
@@ -274,14 +674,19 @@ export class ProductRepository {
       .returning()
 
     // Clean up old images if they changed
-    if (data.images && currentProduct.thumbnailUrl && !data.images.includes(currentProduct.thumbnailUrl)) {
-      try {
-        const publicId = this.extractPublicIdFromUrl(currentProduct.thumbnailUrl)
-        if (publicId) {
-          await cloudinary.uploader.destroy(publicId)
+    if (data.images && Array.isArray(data.images) && Array.isArray(currentProduct.images)) {
+      // Find images to delete (in old array but not in new array)
+      const imagesToDelete = currentProduct.images.filter(img => !data.images.includes(img));
+      
+      for (const imageUrl of imagesToDelete) {
+        try {
+          const publicId = this.extractPublicIdFromUrl(imageUrl)
+          if (publicId) {
+            await cloudinary.uploader.destroy(publicId)
+          }
+        } catch (error) {
+          console.error('Failed to delete old image:', error)
         }
-      } catch (error) {
-        console.error('Failed to delete old image:', error)
       }
     }
 
