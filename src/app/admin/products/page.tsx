@@ -76,6 +76,8 @@ function AdminProductsPageContent() {
   }
 
   const fetchProducts = async () => {
+    console.log('fetchProducts called with params:', {currentPage, searchQuery, selectedCategory, showActiveOnly, sortField, sortDirection});
+    
     setLoading(true)
     setError('')
 
@@ -89,18 +91,24 @@ function AdminProductsPageContent() {
       if (searchQuery) params.append('search', searchQuery)
       if (selectedCategory) params.append('category', selectedCategory)
       if (showActiveOnly) params.append('isActive', 'true')
+      
+      console.log('Fetching products with URL:', `/api/products?${params.toString()}`);
 
       const response = await fetch(`/api/products?${params}`)
+      
+      console.log('Fetch products response:', response.status);
       
       if (!response.ok) {
         throw new Error('Failed to fetch products')
       }
 
       const data = await response.json()
+      console.log('Received products data:', data);
       setProducts(data)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load products'
       setError(errorMessage)
+      console.error('Error in fetchProducts:', err);
     } finally {
       setLoading(false)
     }
@@ -113,24 +121,57 @@ function AdminProductsPageContent() {
   }
 
   const handleDeleteProduct = async (productId: string) => {
+    console.log('Delete function called with product ID:', productId);
+    
     if (!window.confirm('Are you sure you want to delete this product?')) {
+      console.log('User cancelled deletion');
       return
     }
-
+    
+    console.log('Starting delete request...');
+    
     try {
       const response = await fetch(`/api/products/${productId}`, {
         method: 'DELETE',
+        credentials: 'include', // Ensure cookies are sent
+        headers: {
+          'Content-Type': 'application/json',
+        },
       })
-
-      if (!response.ok) {
-        throw new Error('Failed to delete product')
+      
+      console.log('Delete response received:', response.status, response.statusText);
+      
+      let responseData;
+      try {
+        responseData = await response.json();
+        console.log('Parsed response data:', responseData);
+      } catch (parseError) {
+        console.error('JSON parsing failed:', parseError);
+        // If JSON parsing fails, create a generic error response
+        responseData = { error: `Failed to parse response: ${response.status} - ${response.statusText}` };
       }
 
+      if (!response.ok) {
+        console.error('Delete request failed:', response.status, responseData);
+        throw new Error(responseData.error || `Failed to delete product: ${response.status} - ${response.statusText}`);
+      }
+      
+      console.log('Delete successful, updating UI...');
+      
+      // Show success message
+      setSuccessMessage(responseData.message || 'Product deleted successfully!')
+      console.log('Success message set:', responseData.message || 'Product deleted successfully!');
+      
       // Refresh products list
-      fetchProducts()
+      console.log('Calling fetchProducts to refresh the list...');
+      await fetchProducts();
+      console.log('Product list refreshed');
     } catch (err) {
+      console.error('Full delete error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete product'
-      alert(errorMessage)
+      alert(`Error: ${errorMessage}`)
+      console.error('Delete error:', err)
+      console.error('Full error details:', err instanceof Error ? err.stack : err)
     }
   }
 

@@ -717,6 +717,9 @@ export class ProductRepository {
       dimensions.height = data.height || dimensions.height
       dbData.dimensions = dimensions
     }
+    
+    // Handle isActive field for soft delete
+    if (data.isActive !== undefined) dbData.isActive = data.isActive
 
     const [updated] = await db
       .update(products)

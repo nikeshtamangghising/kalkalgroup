@@ -45,14 +45,15 @@ export async function GET(
 
 export const PUT = createAdminHandler(async (
   request: NextRequest,
-  context: RouteContext
+  { params }: RouteContext
 ) => {
-  const { params: paramsPromise } = context
   try {
-    const [body, params] = await Promise.all([
+    const [body, resolvedParams] = await Promise.all([
       request.json(),
-      paramsPromise
+      params
     ])
+    
+    const { id } = resolvedParams
     
     
     const validationResult = updateProductSchema.safeParse(body)
@@ -67,7 +68,7 @@ export const PUT = createAdminHandler(async (
     }
 
     // Check if product exists
-    const existingProduct = await productRepository.findById(params.id)
+    const existingProduct = await productRepository.findById(id)
     if (!existingProduct) {
       return NextResponse.json(
         { error: 'Product not found' },
@@ -79,7 +80,7 @@ export const PUT = createAdminHandler(async (
     // Check if slug is being updated and if it conflicts
     if (validationResult.data.slug && validationResult.data.slug !== existingProduct.slug) {
       const slugConflict = await productRepository.findBySlug(validationResult.data.slug)
-      if (slugConflict && slugConflict.id !== params.id) {
+      if (slugConflict && slugConflict.id !== id) {
         return NextResponse.json(
           { error: 'A product with this slug already exists' },
           { status: 400 }
@@ -132,7 +133,7 @@ export const PUT = createAdminHandler(async (
       }
     }
 
-    const updatedProduct = await productRepository.update(params.id, incoming)
+    const updatedProduct = await productRepository.update(id, incoming)
 
     return NextResponse.json({
       message: 'Product updated successfully',
@@ -165,30 +166,59 @@ export const PUT = createAdminHandler(async (
 
 export const DELETE = createAdminHandler(async (
   _request: NextRequest,
-  context: RouteContext
+  { params }: RouteContext
 ) => {
-  const { params: paramsPromise } = context
   try {
-    const params = await paramsPromise
+    const resolvedParams = await params
+    const { id } = resolvedParams
+    
+    console.log('DELETE request received for product ID:', id);
+    
+    // Validate the ID format
+    if (!id) {
+      console.log('Invalid product ID provided');
+      return NextResponse.json(
+        { error: 'Invalid product ID' },
+        { status: 400 }
+      )
+    }
+    
     // Check if product exists
-    const existingProduct = await productRepository.findById(params.id)
+    const existingProduct = await productRepository.findById(id)
+    console.log('Product found for deletion:', !!existingProduct);
+    
     if (!existingProduct) {
+      console.log('Product not found for deletion:', id);
       return NextResponse.json(
         { error: 'Product not found' },
         { status: 404 }
       )
     }
+    
+    console.log('Product before deletion:', existingProduct);
 
-    // Instead of hard delete, we'll soft delete by setting isActive to false
-    // This preserves order history
-    const updatedProduct = await productRepository.update(params.id, { isActive: false })
+    // Perform hard delete - completely remove the product from the database
+    const deleted = await productRepository.delete(id)
+    
+    if (!deleted) {
+      return NextResponse.json(
+        { error: 'Failed to delete product' },
+        { status: 500 }
+      )
+    }
+    
+    // Return the ID of the deleted product
+    const deletedProduct = { id }
+    
+    console.log('Product after hard deletion:', deletedProduct);
 
     return NextResponse.json({
       message: 'Product deleted successfully',
-      product: updatedProduct
+      product: deletedProduct
     })
 
   } catch (error) {
+    console.error('Delete product error:', error)
     
     if (error instanceof Error) {
       return NextResponse.json(
