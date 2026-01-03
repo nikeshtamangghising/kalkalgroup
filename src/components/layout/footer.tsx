@@ -21,9 +21,9 @@ export default function Footer() {
               Kal Kal Group is an industrial organization committed to building a healthy and prosperous nation through economic transformation. Rooted in nationalism and strengthened by collective cooperation, the company brings people from all backgrounds together to produce and market natural health-promoting products. Through entrepreneurship and innovation, Kal Kal Group aims to drive economic empowerment and become a trusted name for all Nepalis.
             </p>
             <div className="text-sm text-gray-400">
-              <p className="mb-1">📍 Kathmandu, Nepal</p>
-              <p className="mb-1">🕒 Open daily 9:00 AM - 5:00 PM</p>
-              <p>📞 Contact us for inquiries</p>
+              <p className="mb-1">📍 Suryavinayak Municipality, Ward No. 5, Bhaktapur</p>
+              <p className="mb-1">📞 01-6619673 / 9801354245 / 9801354246</p>
+              <p>✉️ Kalkalgroup98@gmail.com</p>
             </div>
           </div>
 

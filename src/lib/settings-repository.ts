@@ -34,6 +34,14 @@ export class SettingsRepository {
       { key: 'tax_rate', value: '0.13', type: SettingType.NUMBER, category: 'pricing' },
       { key: 'site_name', value: 'Kalkal Group', type: SettingType.STRING, category: 'general' },
       { key: 'site_description', value: 'Quality Products', type: SettingType.STRING, category: 'general' },
+      
+      // Contact information settings
+      { key: 'contact_address', value: 'Suryavinayak Municipality, Ward No. 5, Bhaktapur', type: SettingType.STRING, category: 'contact' },
+      { key: 'contact_phone_primary', value: '01-6619673', type: SettingType.STRING, category: 'contact' },
+      { key: 'contact_phone_secondary', value: '9801354245', type: SettingType.STRING, category: 'contact' },
+      { key: 'contact_phone_tertiary', value: '9801354246', type: SettingType.STRING, category: 'contact' },
+      { key: 'contact_email', value: 'Kalkalgroup98@gmail.com', type: SettingType.STRING, category: 'contact' },
+      { key: 'contact_business_hours', value: 'Open daily 9:00 AM - 5:00 PM', type: SettingType.STRING, category: 'contact' },
     ]
 
     for (const setting of defaultSettings) {

@@ -353,7 +353,7 @@ export default function Header() {
 
             <div className="rounded-2xl bg-gradient-to-r from-orange-50 to-yellow-50 p-4 text-sm text-gray-700">
               <p className="font-semibold text-gray-900 mb-1">Need help?</p>
-              <p className="text-gray-600">Reach our support team anytime at support@kalkal.com.</p>
+              <p className="text-gray-600">Call us: 9801354245 | Email: Kalkalgroup98@gmail.com</p>
             </div>
           </div>
         </div>

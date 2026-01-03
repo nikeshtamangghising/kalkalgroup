@@ -303,7 +303,7 @@ export default function AccountPage() {
                   <p className="text-sm uppercase tracking-[0.3em] text-white/70">Need help?</p>
                   <h3 className="text-2xl font-semibold">We’re here 24/7</h3>
                   <p className="text-sm text-white/80">
-                    Call 9801354245 or send us a message and we’ll assist you right away.
+                    Call 9801354245 or send us a message and we'll assist you right away.
                   </p>
                   <div className="flex flex-col gap-2">
                     <Link href="/contact">

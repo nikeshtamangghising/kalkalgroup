@@ -26,7 +26,8 @@ export default function LocationMap() {
             <h4 className="font-medium text-gray-900 mb-1">Address</h4>
             <p className="text-gray-600">
               Kal Kal Group<br />
-              Kathmandu, Nepal
+              Suryavinayak Municipality, Ward No. 5<br />
+              Bhaktapur, Nepal
             </p>
           </div>
           <div>

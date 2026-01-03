@@ -41,7 +41,8 @@ export default function ContactPage() {
                       <h3 className="text-lg font-medium text-gray-900">Address</h3>
                       <p className="text-gray-600">
                         Kal Kal Group<br />
-                        Kathmandu, Nepal
+                        Suryavinayak Municipality, Ward No. 5<br />
+                        Bhaktapur, Nepal
                       </p>
                     </div>
                   </div>
@@ -55,8 +56,8 @@ export default function ContactPage() {
                     <div>
                       <h3 className="text-lg font-medium text-gray-900">Phone</h3>
                       <p className="text-gray-600">
-                        <a href="tel:+977-1-XXXXXXX" className="hover:text-blue-600">
-                          +977-1-XXXXXXX
+                        <a href="tel:+977-01-6619673" className="hover:text-blue-600">
+                          +977-01-6619673
                         </a>
                       </p>
                     </div>
@@ -71,8 +72,8 @@ export default function ContactPage() {
                     <div>
                       <h3 className="text-lg font-medium text-gray-900">Email</h3>
                       <p className="text-gray-600">
-                        <a href="mailto:info@kalkalgroup.com" className="hover:text-blue-600">
-                          info@kalkalgroup.com
+                        <a href="mailto:Kalkalgroup98@gmail.com" className="hover:text-blue-600">
+                          Kalkalgroup98@gmail.com
                         </a>
                       </p>
                     </div>

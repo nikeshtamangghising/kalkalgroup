@@ -18,7 +18,7 @@ const contactCards = [
     title: 'Call Us',
     icon: '📞',
     details: ['01-6619673 (Landline)', '9801354245 (Mobile)', '9801354246 (Mobile)'],
-    action: { label: 'Call Now', href: 'tel:+97716619673' },
+    action: { label: 'Call Now', href: 'tel:+977016619673' },
     helper: 'We respond immediately during business hours.',
   },
   {
